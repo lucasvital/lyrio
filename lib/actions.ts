@@ -1,10 +1,51 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+import { sql } from "drizzle-orm";
+import { db } from "@/lib/db/client";
 import { ensureSchema } from "@/lib/db/ensure-schema";
 import { syncPostHog } from "@/lib/sync/posthog/ingest";
 import { syncRevenueCat } from "@/lib/sync/revenuecat/ingest";
 import { rcGet, rcProjectId } from "@/lib/sync/revenuecat/client";
+
+/**
+ * Diagnostic: inspect identifiers on both sides to choose the best join key.
+ * TODO(remove): temporary debugging.
+ */
+export async function debugIdentity(): Promise<unknown> {
+  try {
+    const phIds = await db.execute<{ distinct_id: string }>(
+      sql`SELECT distinct_id FROM posthog_event GROUP BY distinct_id LIMIT 10`,
+    );
+    const rcIds = await db.execute<{ app_user_id: string }>(
+      sql`SELECT app_user_id FROM revenuecat_subscriber LIMIT 10`,
+    );
+    const propRows = await db.execute<{ properties: Record<string, unknown> | null }>(
+      sql`SELECT properties FROM posthog_event WHERE properties IS NOT NULL LIMIT 30`,
+    );
+    const keys = new Set<string>();
+    for (const r of propRows) {
+      if (r.properties && typeof r.properties === "object") {
+        for (const k of Object.keys(r.properties)) keys.add(k);
+      }
+    }
+    const counts = await db.execute<{ ph: number; rc: number; matched: number }>(sql`
+      SELECT
+        (SELECT count(DISTINCT distinct_id) FROM posthog_event)::int AS ph,
+        (SELECT count(*) FROM revenuecat_subscriber)::int AS rc,
+        (SELECT count(*) FROM revenuecat_subscriber r
+          WHERE EXISTS (SELECT 1 FROM posthog_event e WHERE e.distinct_id = r.app_user_id))::int AS matched
+    `);
+    return {
+      counts: counts[0],
+      samplePosthogDistinctIds: phIds.map((r) => r.distinct_id),
+      sampleRevenuecatAppUserIds: rcIds.map((r) => r.app_user_id),
+      posthogEventPropertyKeys: Array.from(keys).sort(),
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
 
 /** Diagnostic: raw RevenueCat shapes. Pass a known customer id to inspect a payer. */
 export async function debugRevenueCat(customerId?: string): Promise<unknown> {
