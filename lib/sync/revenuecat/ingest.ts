@@ -6,13 +6,14 @@ import { syncLogger } from "@/lib/logger";
 import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-state";
 import {
   grossUsd,
+  listActiveEntitlements,
   listCustomerPurchases,
   listCustomersPage,
   toDate,
 } from "./client";
 
 const SOURCE = "revenuecat" as const;
-const MAX_CUSTOMERS_PER_RUN = 300; // ~3 pages of 100; resumes via cursor
+const MAX_CUSTOMERS_PER_RUN = 150; // bounded per run; resumes via cursor
 
 export interface SyncResult {
   source: typeof SOURCE;
@@ -50,10 +51,17 @@ export async function syncRevenueCat(): Promise<SyncResult> {
         const seenAt = toDate(c.first_seen_at) ?? new Date();
         await ensureAppUser(c.id, { seenAt });
 
-        const entitlements =
-          c.active_entitlements?.items
-            ?.map((e) => e.entitlement_id)
-            .filter((e): e is string => !!e) ?? [];
+        // Active status comes from the dedicated active_entitlements endpoint
+        // (the customers list does not populate them reliably).
+        let entitlements: string[] = [];
+        try {
+          entitlements = await listActiveEntitlements(c.id);
+        } catch (e) {
+          log.warn(
+            { customer: c.id, err: e instanceof Error ? e.message : String(e) },
+            "active_entitlements fetch failed",
+          );
+        }
 
         await db
           .insert(revenuecatSubscriber)

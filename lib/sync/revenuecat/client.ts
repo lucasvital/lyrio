@@ -48,6 +48,22 @@ const purchasesListSchema = z
   })
   .passthrough();
 
+const entitlementsListSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            entitlement_id: z.string().optional(),
+            id: z.string().optional(),
+          })
+          .passthrough(),
+      )
+      .default([]),
+    next_page: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 export type RevenueCatCustomer = z.infer<typeof customerSchema>;
 export type RevenueCatPurchase = z.infer<typeof purchaseSchema>;
 
@@ -97,6 +113,19 @@ export async function listCustomersPage(nextPath?: string | null): Promise<{
   const path = nextPath ?? `/v2/projects/${projectId}/customers?limit=100`;
   const parsed = customersListSchema.parse(await get(path));
   return { customers: parsed.items, nextPage: parsed.next_page ?? null };
+}
+
+/** Active entitlement ids for a customer (recommended source of "active" status). */
+export async function listActiveEntitlements(customerId: string): Promise<string[]> {
+  const { projectId } = config();
+  const parsed = entitlementsListSchema.parse(
+    await get(
+      `/v2/projects/${projectId}/customers/${encodeURIComponent(customerId)}/active_entitlements?limit=50`,
+    ),
+  );
+  return parsed.items
+    .map((e) => e.entitlement_id ?? e.id)
+    .filter((e): e is string => !!e);
 }
 
 /** All purchases for a customer (bounded pages). */
