@@ -29,17 +29,40 @@ export async function debugIdentity(): Promise<unknown> {
         for (const k of Object.keys(r.properties)) keys.add(k);
       }
     }
-    const counts = await db.execute<{ ph: number; rc: number; matched: number }>(sql`
+    const counts = await db.execute<{
+      ph: number;
+      rc: number;
+      matched_distinct_id: number;
+      matched_user_id: number;
+      matched_distinct_id_prop: number;
+    }>(sql`
       SELECT
         (SELECT count(DISTINCT distinct_id) FROM posthog_event)::int AS ph,
         (SELECT count(*) FROM revenuecat_subscriber)::int AS rc,
         (SELECT count(*) FROM revenuecat_subscriber r
-          WHERE EXISTS (SELECT 1 FROM posthog_event e WHERE e.distinct_id = r.app_user_id))::int AS matched
+          WHERE EXISTS (SELECT 1 FROM posthog_event e WHERE e.distinct_id = r.app_user_id))::int AS matched_distinct_id,
+        (SELECT count(*) FROM revenuecat_subscriber r
+          WHERE EXISTS (SELECT 1 FROM posthog_event e WHERE e.properties->>'$user_id' = r.app_user_id))::int AS matched_user_id,
+        (SELECT count(*) FROM revenuecat_subscriber r
+          WHERE EXISTS (SELECT 1 FROM posthog_event e WHERE e.properties->>'distinct_id' = r.app_user_id))::int AS matched_distinct_id_prop
     `);
+
+    const sampleProps = await db.execute<Record<string, unknown>>(sql`
+      SELECT
+        distinct_id,
+        properties->>'$user_id' AS prop_user_id,
+        properties->>'distinct_id' AS prop_distinct_id,
+        properties->>'$is_identified' AS is_identified
+      FROM posthog_event
+      WHERE properties ? '$user_id' OR properties ? 'distinct_id'
+      LIMIT 10
+    `);
+
     return {
       counts: counts[0],
       samplePosthogDistinctIds: phIds.map((r) => r.distinct_id),
       sampleRevenuecatAppUserIds: rcIds.map((r) => r.app_user_id),
+      sampleIdentityProps: sampleProps,
       posthogEventPropertyKeys: Array.from(keys).sort(),
     };
   } catch (e) {
