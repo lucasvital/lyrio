@@ -6,7 +6,6 @@ import { syncLogger } from "@/lib/logger";
 import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-state";
 import {
   fetchOverviewMetrics,
-  listActiveEntitlements,
   listCustomersPage,
   listSubscriptions,
   rcProjectId,
@@ -15,7 +14,7 @@ import {
 } from "./client";
 
 const SOURCE = "revenuecat" as const;
-const MAX_CUSTOMERS_PER_RUN = 200; // 2 enrichment calls each; resumes via cursor
+const MAX_CUSTOMERS_PER_RUN = 200; // 1 enrichment call each; resumes via cursor
 
 export interface SyncResult {
   source: typeof SOURCE;
@@ -85,27 +84,31 @@ export async function syncRevenueCat(): Promise<SyncResult> {
       for (const c of customers) {
         await ensureAppUser(c.id, { seenAt: toDate(c.first_seen_at) ?? new Date() });
 
-        // Per-customer enrichment: active status + lifetime spend.
-        let entitlements: string[] = [];
+        // Per-customer enrichment from subscriptions (one call): the subscription
+        // object is authoritative — `gives_access` for active status,
+        // `total_revenue_in_usd.gross` for lifetime spend.
         let totalSpent = 0;
-        try {
-          entitlements = await listActiveEntitlements(c.id);
-        } catch (e) {
-          log.warn({ customer: c.id, err: String(e) }, "active_entitlements failed");
-        }
+        let isActive = false;
+        const products: string[] = [];
         try {
           const subs = await listSubscriptions(c.id);
-          for (const s of subs) totalSpent += subscriptionRevenue(s);
+          for (const s of subs) {
+            totalSpent += subscriptionRevenue(s);
+            if (s.gives_access === true) {
+              isActive = true;
+              if (typeof s.product_id === "string") products.push(s.product_id);
+            }
+          }
         } catch (e) {
-          log.warn({ customer: c.id, err: String(e) }, "subscriptions failed");
+          log.warn({ customer: c.id, err: String(e) }, "subscriptions fetch failed");
         }
 
         await db
           .insert(revenuecatSubscriber)
           .values({
             appUserId: c.id,
-            isActive: entitlements.length > 0,
-            activeEntitlements: entitlements,
+            isActive,
+            activeEntitlements: products,
             totalSpentUsd: String(totalSpent),
             originalPurchaseAt: toDate(c.first_seen_at),
             raw: c as Record<string, unknown>,
@@ -113,8 +116,8 @@ export async function syncRevenueCat(): Promise<SyncResult> {
           .onConflictDoUpdate({
             target: revenuecatSubscriber.appUserId,
             set: {
-              isActive: entitlements.length > 0,
-              activeEntitlements: entitlements,
+              isActive,
+              activeEntitlements: products,
               totalSpentUsd: String(totalSpent),
               updatedAt: new Date(),
             },
