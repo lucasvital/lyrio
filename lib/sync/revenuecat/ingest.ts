@@ -4,10 +4,15 @@ import { ensureSchema } from "@/lib/db/ensure-schema";
 import { ensureAppUser } from "@/lib/identity";
 import { syncLogger } from "@/lib/logger";
 import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-state";
-import { fetchTransactionsPage } from "./client";
+import {
+  grossUsd,
+  listCustomerPurchases,
+  listCustomersPage,
+  toDate,
+} from "./client";
 
 const SOURCE = "revenuecat" as const;
-const MAX_PAGES_PER_RUN = 20;
+const MAX_CUSTOMERS_PER_RUN = 300; // ~3 pages of 100; resumes via cursor
 
 export interface SyncResult {
   source: typeof SOURCE;
@@ -18,69 +23,90 @@ export interface SyncResult {
 }
 
 /**
- * Incremental, idempotent ingest of RevenueCat transactions (Story 3.2).
- * Upserts transactions by id and maintains a subscriber summary row.
+ * Incremental ingest of RevenueCat customers + purchases (Story 3.2), via the
+ * v2 API. Idempotent (upsert by natural id). The cursor is the customers
+ * `next_page`; when exhausted it resets to re-scan (refreshing data).
  */
 export async function syncRevenueCat(): Promise<SyncResult> {
   const log = syncLogger(SOURCE);
+
   try {
     await ensureSchema();
     await markRunning(SOURCE);
+
     const checkpoint = await getCheckpoint(SOURCE);
-    let startingAfter = checkpoint?.cursor ?? null;
-    let nextPage: string | null = null;
+    let nextPath: string | null = checkpoint?.cursor ?? null;
+    let customersProcessed = 0;
     let ingested = 0;
-    let lastId = startingAfter;
 
-    for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
-      const { transactions, nextPage: np } = await fetchTransactionsPage({
-        startingAfter,
-        nextPage,
-      });
-      if (transactions.length === 0) break;
+    while (customersProcessed < MAX_CUSTOMERS_PER_RUN) {
+      const { customers, nextPage } = await listCustomersPage(nextPath);
+      if (customers.length === 0) {
+        nextPath = nextPage;
+        break;
+      }
 
-      for (const tx of transactions) {
-        await ensureAppUser(tx.app_user_id, { seenAt: new Date(tx.purchased_at) });
+      for (const c of customers) {
+        const seenAt = toDate(c.first_seen_at) ?? new Date();
+        await ensureAppUser(c.id, { seenAt });
 
-        await db
-          .insert(revenuecatTransaction)
-          .values({
-            transactionId: tx.id,
-            appUserId: tx.app_user_id,
-            productId: tx.product_id ?? null,
-            store: tx.store ?? null,
-            type: tx.type ?? null,
-            priceUsd: tx.revenue_in_usd != null ? String(tx.revenue_in_usd) : null,
-            currency: tx.currency ?? null,
-            purchasedAt: new Date(tx.purchased_at),
-            raw: tx as unknown as Record<string, unknown>,
-          })
-          .onConflictDoNothing({ target: revenuecatTransaction.transactionId });
+        const entitlements =
+          c.active_entitlements?.items
+            ?.map((e) => e.entitlement_id)
+            .filter((e): e is string => !!e) ?? [];
 
         await db
           .insert(revenuecatSubscriber)
           .values({
-            appUserId: tx.app_user_id,
-            isActive: true,
-            originalPurchaseAt: new Date(tx.purchased_at),
+            appUserId: c.id,
+            isActive: entitlements.length > 0,
+            activeEntitlements: entitlements,
+            originalPurchaseAt: toDate(c.first_seen_at),
+            raw: c as Record<string, unknown>,
           })
           .onConflictDoUpdate({
             target: revenuecatSubscriber.appUserId,
-            set: { isActive: true },
+            set: {
+              isActive: entitlements.length > 0,
+              activeEntitlements: entitlements,
+              updatedAt: new Date(),
+            },
           });
 
-        ingested++;
-        lastId = tx.id;
+        // Purchases → transactions (revenue)
+        const purchases = await listCustomerPurchases(c.id);
+        for (const p of purchases) {
+          const purchasedAt = toDate(p.purchased_at);
+          if (!purchasedAt) continue;
+          const price = grossUsd(p.revenue_in_usd);
+          await db
+            .insert(revenuecatTransaction)
+            .values({
+              transactionId: p.id,
+              appUserId: c.id,
+              productId: p.product_id ?? null,
+              store: p.store ?? null,
+              type: null,
+              priceUsd: price != null ? String(price) : null,
+              currency: "USD",
+              purchasedAt,
+              raw: p as Record<string, unknown>,
+            })
+            .onConflictDoNothing({ target: revenuecatTransaction.transactionId });
+          ingested++;
+        }
+
+        customersProcessed++;
       }
 
-      nextPage = np;
-      startingAfter = null;
-      if (!nextPage) break;
+      nextPath = nextPage;
+      if (!nextPath) break; // reached the end → cursor resets below
+      if (customersProcessed >= MAX_CUSTOMERS_PER_RUN) break;
     }
 
-    await markOk(SOURCE, lastId, ingested);
-    log.info({ ingested }, "revenuecat sync ok");
-    return { source: SOURCE, ingested, cursor: lastId, status: "ok" };
+    await markOk(SOURCE, nextPath ?? null, ingested);
+    log.info({ ingested, customersProcessed }, "revenuecat sync ok");
+    return { source: SOURCE, ingested, cursor: nextPath ?? null, status: "ok" };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markError(SOURCE, message);
