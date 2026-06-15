@@ -39,6 +39,12 @@ const STATEMENTS = [
   )`,
   // Backfill column for pre-existing installs.
   `ALTER TABLE "revenuecat_subscriber" ADD COLUMN IF NOT EXISTS "total_spent_usd" numeric(14, 2)`,
+  `CREATE TABLE IF NOT EXISTS "rc_chart" (
+    "name" text PRIMARY KEY NOT NULL,
+    "unit" text,
+    "series" jsonb,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS "revenuecat_transaction" (
     "transaction_id" text PRIMARY KEY NOT NULL,
     "app_user_id" text NOT NULL,

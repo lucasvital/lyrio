@@ -1,10 +1,11 @@
 import { db } from "@/lib/db/client";
-import { rcOverview, revenuecatSubscriber } from "@/lib/db/schema";
+import { rcChart, rcOverview, revenuecatSubscriber } from "@/lib/db/schema";
 import { ensureSchema } from "@/lib/db/ensure-schema";
 import { ensureAppUser } from "@/lib/identity";
 import { syncLogger } from "@/lib/logger";
 import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-state";
 import {
+  fetchChart,
   fetchOverviewMetrics,
   listCustomersPage,
   listSubscriptions,
@@ -12,6 +13,8 @@ import {
   subscriptionRevenue,
   toDate,
 } from "./client";
+
+const CHARTS = ["mrr", "revenue", "actives", "trials"] as const;
 
 const SOURCE = "revenuecat" as const;
 const MAX_CUSTOMERS_PER_RUN = 200; // 1 enrichment call each; resumes via cursor
@@ -69,6 +72,30 @@ export async function syncRevenueCat(): Promise<SyncResult> {
           updatedAt: new Date(),
         },
       });
+
+    // 1b. Time-series charts (last 90 days, weekly resolution)
+    const end = new Date();
+    const start = new Date(end.getTime() - 90 * 86_400_000);
+    const endStr = end.toISOString().slice(0, 10);
+    const startStr = start.toISOString().slice(0, 10);
+    for (const name of CHARTS) {
+      try {
+        const series = await fetchChart(name, {
+          resolution: "1", // week
+          startDate: startStr,
+          endDate: endStr,
+        });
+        await db
+          .insert(rcChart)
+          .values({ name, unit: series.unit, series: series.points, updatedAt: new Date() })
+          .onConflictDoUpdate({
+            target: rcChart.name,
+            set: { unit: series.unit, series: series.points, updatedAt: new Date() },
+          });
+      } catch (e) {
+        log.warn({ chart: name, err: String(e) }, "chart fetch failed");
+      }
+    }
 
     // 2. Customer list (identity for unified join)
     const checkpoint = await getCheckpoint(SOURCE);

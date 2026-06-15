@@ -102,6 +102,14 @@ export const rcOverview = pgTable("rc_overview", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** RevenueCat time-series snapshots from the Charts API. One row per chart name. */
+export const rcChart = pgTable("rc_chart", {
+  name: text("name").primaryKey(),
+  unit: text("unit"),
+  series: jsonb("series").$type<Array<{ date: string; value: number }>>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type AppUser = typeof appUser.$inferSelect;
 export type PosthogEvent = typeof posthogEvent.$inferSelect;
 export type RevenuecatTransaction = typeof revenuecatTransaction.$inferSelect;

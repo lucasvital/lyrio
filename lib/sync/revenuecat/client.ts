@@ -176,6 +176,41 @@ export async function fetchOverviewMetrics(): Promise<RevenueCatOverview> {
   return normalizeOverview(data);
 }
 
+export interface ChartSeries {
+  name: string;
+  unit: string;
+  points: Array<{ date: string; value: number }>;
+}
+
+/**
+ * Time-series from the Charts API. Response `chart_data` has `values` as
+ * [timestampSeconds, value, ...] rows and `segments[].unit`. We read the first
+ * segment. `resolution` ids: day=0, week=1, month=2, quarter=3, year=4.
+ */
+export async function fetchChart(
+  name: string,
+  opts: { resolution?: string; startDate?: string; endDate?: string } = {},
+): Promise<ChartSeries> {
+  const { projectId } = config();
+  const qs = new URLSearchParams({ realtime: "false" });
+  if (opts.resolution) qs.set("resolution", opts.resolution);
+  if (opts.startDate) qs.set("start_date", opts.startDate);
+  if (opts.endDate) qs.set("end_date", opts.endDate);
+
+  const cd = (await get(`/v2/projects/${projectId}/charts/${name}?${qs.toString()}`)) as {
+    values?: Array<Array<number>>;
+    segments?: Array<{ unit?: string }>;
+    yaxis?: string;
+  };
+
+  const unit = cd.segments?.[0]?.unit ?? cd.yaxis ?? "";
+  const points = (cd.values ?? []).map((row) => ({
+    date: new Date(Number(row[0]) * 1000).toISOString().slice(0, 10),
+    value: Number(row[1] ?? 0),
+  }));
+  return { name, unit, points };
+}
+
 /** Active entitlement ids for a customer (recommended source of "active" status). */
 export async function listActiveEntitlements(customerId: string): Promise<string[]> {
   const { projectId } = config();

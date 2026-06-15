@@ -1,7 +1,21 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { rcOverview } from "@/lib/db/schema";
+import { rcChart, rcOverview } from "@/lib/db/schema";
 import type { DateRange } from "./posthog";
+
+export interface ChartPoint {
+  date: string;
+  value: number;
+}
+
+/** Read a stored RevenueCat time-series chart (mrr, revenue, actives, trials). */
+export async function getChart(
+  name: string,
+): Promise<{ unit: string; points: ChartPoint[] }> {
+  const rows = await db.select().from(rcChart).where(eq(rcChart.name, name)).limit(1);
+  const r = rows[0];
+  return { unit: r?.unit ?? "", points: r?.series ?? [] };
+}
 
 export interface RevenueOverview {
   mrr: number;
