@@ -7,7 +7,7 @@ import { SyncStatus } from "@/components/sync-status";
 import { parseRange } from "@/lib/analytics/range";
 import { safeQuery } from "@/lib/analytics/safe";
 import { getProductKpis } from "@/lib/analytics/posthog";
-import { getRevenueKpis } from "@/lib/analytics/revenuecat";
+import { getRevenueOverview } from "@/lib/analytics/revenuecat";
 import { getConversionFunnel } from "@/lib/analytics/unified";
 import { getMatchCoverage } from "@/lib/identity";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
@@ -23,12 +23,14 @@ export default async function OverviewPage({
 
   const [product, revenue, funnel, coverage] = await Promise.all([
     safeQuery(() => getProductKpis(range), { activeUsers: 0, totalEvents: 0, eventsPerUser: 0 }),
-    safeQuery(() => getRevenueKpis(range), {
-      revenue: 0,
-      transactions: 0,
-      payingUsers: 0,
-      activeSubscribers: 0,
-      arpu: 0,
+    safeQuery(() => getRevenueOverview(), {
+      mrr: 0,
+      revenue28d: 0,
+      activeSubscriptions: 0,
+      activeTrials: 0,
+      newCustomers28d: 0,
+      activeUsers28d: 0,
+      updatedAt: null,
     }),
     safeQuery(() => getConversionFunnel(range), {
       totalUsers: 0,
@@ -57,8 +59,8 @@ export default async function OverviewPage({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Active users" value={formatNumber(product.activeUsers)} hint="PostHog" />
-        <KpiCard label="Revenue" value={formatCurrency(revenue.revenue)} hint="RevenueCat" />
-        <KpiCard label="Active subscribers" value={formatNumber(revenue.activeSubscribers)} />
+        <KpiCard label="MRR" value={formatCurrency(revenue.mrr)} hint="RevenueCat" />
+        <KpiCard label="Active subscriptions" value={formatNumber(revenue.activeSubscriptions)} />
         <KpiCard label="Identity match" value={formatPercent(coverage.matchRate)} hint="unified" />
       </div>
 

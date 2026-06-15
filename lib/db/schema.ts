@@ -88,6 +88,19 @@ export const syncState = pgTable("sync_state", {
   ingestedTotal: integer("ingested_total").default(0).notNull(),
 });
 
+/** Aggregate RevenueCat metrics snapshot (from /metrics/overview). Single row per project. */
+export const rcOverview = pgTable("rc_overview", {
+  projectId: text("project_id").primaryKey(),
+  activeTrials: integer("active_trials").default(0).notNull(),
+  activeSubscriptions: integer("active_subscriptions").default(0).notNull(),
+  mrr: numeric("mrr", { precision: 14, scale: 2 }),
+  revenue28d: numeric("revenue_28d", { precision: 14, scale: 2 }),
+  newCustomers28d: integer("new_customers_28d").default(0).notNull(),
+  activeUsers28d: integer("active_users_28d").default(0).notNull(),
+  raw: jsonb("raw").$type<Record<string, unknown>>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type AppUser = typeof appUser.$inferSelect;
 export type PosthogEvent = typeof posthogEvent.$inferSelect;
 export type RevenuecatTransaction = typeof revenuecatTransaction.$inferSelect;

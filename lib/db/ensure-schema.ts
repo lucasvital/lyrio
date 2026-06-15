@@ -55,6 +55,17 @@ const STATEMENTS = [
     "error" text,
     "ingested_total" integer DEFAULT 0 NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS "rc_overview" (
+    "project_id" text PRIMARY KEY NOT NULL,
+    "active_trials" integer DEFAULT 0 NOT NULL,
+    "active_subscriptions" integer DEFAULT 0 NOT NULL,
+    "mrr" numeric(14, 2),
+    "revenue_28d" numeric(14, 2),
+    "new_customers_28d" integer DEFAULT 0 NOT NULL,
+    "active_users_28d" integer DEFAULT 0 NOT NULL,
+    "raw" jsonb,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
   `CREATE INDEX IF NOT EXISTS "posthog_event_distinct_idx" ON "posthog_event" ("distinct_id")`,
   `CREATE INDEX IF NOT EXISTS "posthog_event_time_idx" ON "posthog_event" ("timestamp")`,
   `CREATE INDEX IF NOT EXISTS "posthog_event_event_idx" ON "posthog_event" ("event")`,

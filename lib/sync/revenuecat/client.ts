@@ -115,6 +115,67 @@ export async function listCustomersPage(nextPath?: string | null): Promise<{
   return { customers: parsed.items, nextPage: parsed.next_page ?? null };
 }
 
+export interface RevenueCatOverview {
+  activeTrials: number;
+  activeSubscriptions: number;
+  mrr: number;
+  revenue28d: number;
+  newCustomers28d: number;
+  activeUsers28d: number;
+  raw: Record<string, unknown>;
+}
+
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Normalize the overview response (handles both `metrics` array and flat shapes). */
+function normalizeOverview(data: unknown): RevenueCatOverview {
+  const d = (data ?? {}) as Record<string, unknown>;
+  const out: RevenueCatOverview = {
+    activeTrials: 0,
+    activeSubscriptions: 0,
+    mrr: 0,
+    revenue28d: 0,
+    newCustomers28d: 0,
+    activeUsers28d: 0,
+    raw: d,
+  };
+
+  if (Array.isArray(d.metrics)) {
+    for (const m of d.metrics as Array<Record<string, unknown>>) {
+      const id = String(m.id ?? m.name ?? "").toLowerCase();
+      const v = num(m.value);
+      if (id.includes("trial")) out.activeTrials = v;
+      else if (id.includes("subscription")) out.activeSubscriptions = v;
+      else if (id === "mrr") out.mrr = v;
+      else if (id.includes("revenue")) out.revenue28d = v;
+      else if (id.includes("new_customer")) out.newCustomers28d = v;
+      else if (id.includes("active_user") || id.includes("active_customer"))
+        out.activeUsers28d = v;
+    }
+    return out;
+  }
+
+  out.activeTrials = num(d.active_trials);
+  out.activeSubscriptions = num(d.active_subscriptions);
+  out.mrr = num(d.mrr);
+  out.revenue28d = num(d.revenue_last_28_days ?? d.revenue);
+  out.newCustomers28d = num(d.new_customers_last_28_days ?? d.new_customers);
+  out.activeUsers28d = num(
+    d.active_users_last_28_days ?? d.active_customers ?? d.active_users,
+  );
+  return out;
+}
+
+/** Aggregate metrics from /v2/projects/{id}/metrics/overview (matches the dashboard). */
+export async function fetchOverviewMetrics(): Promise<RevenueCatOverview> {
+  const { projectId } = config();
+  const data = await get(`/v2/projects/${projectId}/metrics/overview`);
+  return normalizeOverview(data);
+}
+
 /** Active entitlement ids for a customer (recommended source of "active" status). */
 export async function listActiveEntitlements(customerId: string): Promise<string[]> {
   const { projectId } = config();
