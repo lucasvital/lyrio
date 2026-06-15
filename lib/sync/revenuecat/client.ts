@@ -78,6 +78,16 @@ async function get(path: string) {
   return res.json();
 }
 
+/** Raw GET against the RevenueCat API (used by the debug endpoint). */
+export async function rcGet(path: string): Promise<unknown> {
+  return get(path);
+}
+
+/** Project id helper for callers that build raw paths. */
+export function rcProjectId(): string {
+  return config().projectId;
+}
+
 /** One page of customers. `nextPath` is the `next_page` value from a prior page. */
 export async function listCustomersPage(nextPath?: string | null): Promise<{
   customers: RevenueCatCustomer[];
