@@ -17,7 +17,13 @@ declare global {
 function init(): PostgresJsDatabase<typeof schema> {
   if (globalThis.__lyrio_db__) return globalThis.__lyrio_db__;
   const { DATABASE_URL } = getEnv();
-  const sql = postgres(DATABASE_URL, { max: 1, prepare: false });
+  // Neon and other hosted Postgres require TLS; local Postgres usually does not.
+  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\])/.test(DATABASE_URL);
+  const sql = postgres(DATABASE_URL, {
+    max: 1,
+    prepare: false,
+    ssl: isLocal ? undefined : "require",
+  });
   const instance = drizzle(sql, { schema });
   globalThis.__lyrio_db__ = instance;
   return instance;

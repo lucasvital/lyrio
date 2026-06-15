@@ -70,4 +70,16 @@ natural id), so overlapping or repeated triggers are safe.
 
 1. Import the repo in Vercel.
 2. Add all env vars from the table above in Project Settings.
-3. Deploy — `vercel.json` registers the cron jobs automatically.
+3. Deploy.
+4. Open the app → **Settings** → click **Initialize database** (creates tables),
+   then **Sync PostHog** / **Sync RevenueCat** to pull data.
+   - The schema is also created automatically on the first sync, so you can skip
+     step 4's first button if you trigger a sync directly.
+   - No local `db:migrate` needed for serverless: `ensureSchema()` runs
+     idempotently (`CREATE TABLE IF NOT EXISTS`) before each sync.
+5. Scheduling: configure the GitHub Actions `CRON_SECRET` secret + `APP_URL`
+   variable (see "Data sync") so syncs run hourly.
+
+> **Empty dashboards?** It means no sync has run yet (or credentials/DB are not
+> set). Go to Settings, click Initialize database, then Sync. Check the sync
+> status line — it shows `ok` + last run, or the exact error.

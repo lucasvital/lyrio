@@ -1,46 +1,56 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { triggerPostHogSync, triggerRevenueCatSync } from "@/lib/actions";
+import {
+  initDatabase,
+  triggerPostHogSync,
+  triggerRevenueCatSync,
+} from "@/lib/actions";
 
 export function SyncButtons() {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
-  function run(which: "posthog" | "revenuecat") {
+  function act(fn: () => Promise<{ message?: string; status?: string; ingested?: number }>, label: string) {
     setMessage(null);
     startTransition(async () => {
-      const result =
-        which === "posthog"
-          ? await triggerPostHogSync()
-          : await triggerRevenueCatSync();
-      setMessage(
-        result.status === "ok"
-          ? `${which}: synced ${result.ingested} records`
-          : `${which}: error — ${result.message ?? "unknown"}`,
-      );
+      const result = await fn();
+      if ("ingested" in result && result.status === "ok") {
+        setMessage(`${label}: synced ${result.ingested} records`);
+      } else if ("status" in result && result.status === "error") {
+        setMessage(`${label}: error — ${result.message ?? "unknown"}`);
+      } else {
+        setMessage(`${label}: ${result.message ?? "done"}`);
+      }
     });
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
-          onClick={() => run("posthog")}
+          onClick={() => act(initDatabase, "Database")}
+          disabled={pending}
+          className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+        >
+          Initialize database
+        </button>
+        <button
+          onClick={() => act(triggerPostHogSync, "PostHog")}
           disabled={pending}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
           Sync PostHog
         </button>
         <button
-          onClick={() => run("revenuecat")}
+          onClick={() => act(triggerRevenueCatSync, "RevenueCat")}
           disabled={pending}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
           Sync RevenueCat
         </button>
       </div>
-      {pending && <p className="text-xs text-muted">Syncing…</p>}
+      {pending && <p className="text-xs text-muted">Working…</p>}
       {message && <p className="text-xs text-muted">{message}</p>}
     </div>
   );

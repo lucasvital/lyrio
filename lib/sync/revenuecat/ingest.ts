@@ -1,5 +1,6 @@
 import { db } from "@/lib/db/client";
 import { revenuecatTransaction, revenuecatSubscriber } from "@/lib/db/schema";
+import { ensureSchema } from "@/lib/db/ensure-schema";
 import { ensureAppUser } from "@/lib/identity";
 import { syncLogger } from "@/lib/logger";
 import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-state";
@@ -22,9 +23,9 @@ export interface SyncResult {
  */
 export async function syncRevenueCat(): Promise<SyncResult> {
   const log = syncLogger(SOURCE);
-  await markRunning(SOURCE);
-
   try {
+    await ensureSchema();
+    await markRunning(SOURCE);
     const checkpoint = await getCheckpoint(SOURCE);
     let startingAfter = checkpoint?.cursor ?? null;
     let nextPage: string | null = null;
