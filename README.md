@@ -1,0 +1,57 @@
+# Lyrio Analytics Dashboard
+
+Unified analytics dashboard joining **PostHog** (product) and **RevenueCat** (revenue) into one Next.js app, deployable to Vercel. Behavior and revenue are analyzed **together** (joined by `distinct_id` = `app_user_id`) and **separately**.
+
+## Stack
+
+Next.js 15 (App Router) · React 19 · TypeScript · Auth.js v5 · Neon/Postgres · Drizzle ORM · Tailwind · Recharts · Vercel Cron.
+
+See `docs/prd.md` and `docs/architecture.md` for the full PRD and architecture.
+
+## Setup
+
+```bash
+npm install
+cp .env.local.example .env.local   # then fill in the values
+npm run db:generate                  # generate SQL migration from schema
+npm run db:migrate                   # apply migrations to your database
+npm run dev                          # http://localhost:3000
+```
+
+### Required environment variables
+
+All variables live in `.env.local` (never committed). See `.env.local.example`:
+
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | Postgres connection string (Neon recommended) |
+| `AUTH_SECRET` | Auth.js secret (`npx auth secret`) |
+| `AUTH_URL` | App base URL (local: `http://localhost:3000`) |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth credentials |
+| `POSTHOG_API_KEY` / `POSTHOG_PROJECT_ID` | PostHog Cloud US API |
+| `REVENUECAT_API_KEY` / `REVENUECAT_PROJECT_ID` | RevenueCat API |
+| `CRON_SECRET` | Protects `/api/sync/*` and Vercel Cron |
+
+## Data sync
+
+- Vercel Cron hits `GET /api/sync/posthog` and `/api/sync/revenuecat` hourly (see `vercel.json`), authorized by `CRON_SECRET`.
+- Manual sync is available from the **Settings** page.
+- Sync is incremental (cursor stored in `sync_state`) and idempotent (upsert by natural id).
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build |
+| `npm run typecheck` | TypeScript check |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest unit tests |
+| `npm run db:generate` | Generate Drizzle migration |
+| `npm run db:migrate` | Apply migrations |
+
+## Deploy (Vercel)
+
+1. Import the repo in Vercel.
+2. Add all env vars from the table above in Project Settings.
+3. Deploy — `vercel.json` registers the cron jobs automatically.

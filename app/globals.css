@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 250 250 252;
+  --foreground: 17 17 22;
+  --card: 255 255 255;
+  --muted: 113 113 130;
+  --border: 226 226 235;
+  --primary: 99 102 241;
+  --positive: 22 163 74;
+  --negative: 220 38 38;
+}
+
+.dark {
+  --background: 12 12 16;
+  --foreground: 237 237 244;
+  --card: 22 22 28;
+  --muted: 148 148 162;
+  --border: 39 39 48;
+  --primary: 129 140 248;
+  --positive: 74 222 128;
+  --negative: 248 113 113;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+}
