@@ -1,26 +1,11 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
 
 /**
- * Route guard (Story 1.4 / FR2). Unauthenticated users hitting protected
- * routes are redirected to /login. Public: /login, /api/auth/*, /api/health.
+ * Route guard (Story 1.4 / FR2). Uses the edge-safe config only; the
+ * `authorized` callback decides access and redirects to /login.
  */
-export default auth((req) => {
-  const { pathname } = req.nextUrl;
-
-  const isPublic =
-    pathname === "/login" ||
-    pathname.startsWith("/api/auth") ||
-    pathname === "/api/health" ||
-    pathname.startsWith("/api/sync"); // guarded by CRON_SECRET instead
-
-  if (isPublic) return;
-
-  if (!req.auth) {
-    const loginUrl = new URL("/login", req.nextUrl.origin);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return Response.redirect(loginUrl);
-  }
-});
+export default NextAuth(authConfig).auth;
 
 export const config = {
   // Run on everything except static assets.

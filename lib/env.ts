@@ -9,8 +9,10 @@ const serverEnvSchema = z.object({
 
   AUTH_SECRET: z.string().min(1, "AUTH_SECRET is required"),
   AUTH_URL: z.string().url().optional(),
-  AUTH_GOOGLE_ID: z.string().optional(),
-  AUTH_GOOGLE_SECRET: z.string().optional(),
+
+  // Single admin login (email + password).
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
 
   POSTHOG_API_KEY: z.string().optional(),
   POSTHOG_PROJECT_ID: z.string().optional(),

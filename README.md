@@ -27,7 +27,7 @@ All variables live in `.env.local` (never committed). See `.env.local.example`:
 | `DATABASE_URL` | Postgres connection string (Neon recommended) |
 | `AUTH_SECRET` | Auth.js secret (`npx auth secret`) |
 | `AUTH_URL` | App base URL (local: `http://localhost:3000`) |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth credentials |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | The single admin login (email + password) |
 | `POSTHOG_API_KEY` / `POSTHOG_PROJECT_ID` | PostHog Cloud US API |
 | `REVENUECAT_API_KEY` / `REVENUECAT_PROJECT_ID` | RevenueCat API |
 | `CRON_SECRET` | Protects `/api/sync/*` and Vercel Cron |

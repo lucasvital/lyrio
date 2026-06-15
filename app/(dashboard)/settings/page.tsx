@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const config = {
     database: !!process.env.DATABASE_URL,
     auth: !!process.env.AUTH_SECRET,
-    google: !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET,
+    admin: !!process.env.ADMIN_EMAIL && !!process.env.ADMIN_PASSWORD,
     posthog: !!process.env.POSTHOG_API_KEY && !!process.env.POSTHOG_PROJECT_ID,
     revenuecat: !!process.env.REVENUECAT_API_KEY && !!process.env.REVENUECAT_PROJECT_ID,
     cron: !!process.env.CRON_SECRET,
@@ -36,7 +36,7 @@ export default function SettingsPage() {
           <ul className="mt-3 space-y-2">
             <StatusRow label="Database (Postgres)" ok={config.database} />
             <StatusRow label="Auth secret" ok={config.auth} />
-            <StatusRow label="Google OAuth" ok={config.google} />
+            <StatusRow label="Admin login (email/password)" ok={config.admin} />
             <StatusRow label="PostHog API" ok={config.posthog} />
             <StatusRow label="RevenueCat API" ok={config.revenuecat} />
             <StatusRow label="Cron secret" ok={config.cron} />
