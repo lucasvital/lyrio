@@ -6,15 +6,10 @@ import { syncPostHog } from "@/lib/sync/posthog/ingest";
 import { syncRevenueCat } from "@/lib/sync/revenuecat/ingest";
 import { rcGet, rcProjectId } from "@/lib/sync/revenuecat/client";
 
-/** Diagnostic: raw RevenueCat shapes for one customer (shown in Settings). */
-export async function debugRevenueCat(): Promise<unknown> {
+/** Diagnostic: raw RevenueCat shapes. Pass a known customer id to inspect a payer. */
+export async function debugRevenueCat(customerId?: string): Promise<unknown> {
   try {
     const pid = rcProjectId();
-    const customers = (await rcGet(`/v2/projects/${pid}/customers?limit=3`)) as {
-      items?: Array<{ id?: string }>;
-    };
-    const first = customers.items?.[0];
-    const id = first?.id;
     const safe = async (path: string) => {
       try {
         return await rcGet(path);
@@ -22,6 +17,20 @@ export async function debugRevenueCat(): Promise<unknown> {
         return { error: e instanceof Error ? e.message : String(e) };
       }
     };
+
+    let id = customerId?.trim() || undefined;
+    let customerInfo: unknown;
+
+    if (id) {
+      customerInfo = await safe(`/v2/projects/${pid}/customers/${encodeURIComponent(id)}`);
+    } else {
+      const customers = (await rcGet(`/v2/projects/${pid}/customers?limit=3`)) as {
+        items?: Array<{ id?: string }>;
+      };
+      customerInfo = customers;
+      id = customers.items?.[0]?.id;
+    }
+
     const detail = id
       ? {
           active_entitlements: await safe(
@@ -35,13 +44,8 @@ export async function debugRevenueCat(): Promise<unknown> {
           ),
         }
       : null;
-    return {
-      projectId: pid,
-      customerCount: customers.items?.length ?? 0,
-      customersSample: customers,
-      firstCustomerId: id ?? null,
-      detail,
-    };
+
+    return { projectId: pid, queriedCustomerId: id ?? null, customerInfo, detail };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }

@@ -7,17 +7,24 @@ import { debugRevenueCat } from "@/lib/actions";
 export function DebugPanel() {
   const [pending, startTransition] = useTransition();
   const [output, setOutput] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState("");
 
   function run() {
     setOutput(null);
     startTransition(async () => {
-      const result = await debugRevenueCat();
+      const result = await debugRevenueCat(customerId);
       setOutput(JSON.stringify(result, null, 2));
     });
   }
 
   return (
     <div className="space-y-3">
+      <input
+        value={customerId}
+        onChange={(e) => setCustomerId(e.target.value)}
+        placeholder="Known paying App User ID (optional)"
+        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+      />
       <button
         onClick={run}
         disabled={pending}
