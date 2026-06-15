@@ -51,6 +51,31 @@ export async function debugRevenueCat(customerId?: string): Promise<unknown> {
   }
 }
 
+/**
+ * Diagnostic: raw RevenueCat Charts API response (to map time-series shape).
+ * TODO(remove): temporary debugging — delete once charts mapping is confirmed.
+ */
+export async function debugChart(chartName?: string): Promise<unknown> {
+  try {
+    const pid = rcProjectId();
+    const name = (chartName?.trim() || "mrr").toLowerCase();
+    const safe = async (path: string) => {
+      try {
+        return await rcGet(path);
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    };
+    return {
+      chart: name,
+      options: await safe(`/v2/projects/${pid}/charts/${name}/options`),
+      data: await safe(`/v2/projects/${pid}/charts/${name}?realtime=false`),
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** Create database tables (idempotent). Run once after setting DATABASE_URL. */
 export async function initDatabase(): Promise<{ ok: boolean; message: string }> {
   try {
