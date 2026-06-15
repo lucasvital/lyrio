@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardTitle } from "@/components/ui/card";
 import { SyncStatus } from "@/components/sync-status";
 import { SyncButtons } from "./sync-buttons";
+import { DebugPanel } from "./debug-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,16 @@ export default function SettingsPage() {
           <div className="mt-4">
             <SyncButtons />
           </div>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card>
+          <CardTitle>Diagnostics</CardTitle>
+          <p className="mb-3 mt-1 text-xs text-muted">
+            Inspect the raw RevenueCat API response for one customer.
+          </p>
+          <DebugPanel />
         </Card>
       </div>
     </>
