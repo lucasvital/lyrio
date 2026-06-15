@@ -6,13 +6,16 @@ import { syncLogger } from "@/lib/logger";
 import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-state";
 import {
   fetchOverviewMetrics,
+  listActiveEntitlements,
   listCustomersPage,
+  listSubscriptions,
   rcProjectId,
+  subscriptionRevenue,
   toDate,
 } from "./client";
 
 const SOURCE = "revenuecat" as const;
-const MAX_CUSTOMERS_PER_RUN = 1000; // list-only (cheap); resumes via cursor
+const MAX_CUSTOMERS_PER_RUN = 200; // 2 enrichment calls each; resumes via cursor
 
 export interface SyncResult {
   source: typeof SOURCE;
@@ -81,12 +84,40 @@ export async function syncRevenueCat(): Promise<SyncResult> {
       }
       for (const c of customers) {
         await ensureAppUser(c.id, { seenAt: toDate(c.first_seen_at) ?? new Date() });
+
+        // Per-customer enrichment: active status + lifetime spend.
+        let entitlements: string[] = [];
+        let totalSpent = 0;
+        try {
+          entitlements = await listActiveEntitlements(c.id);
+        } catch (e) {
+          log.warn({ customer: c.id, err: String(e) }, "active_entitlements failed");
+        }
+        try {
+          const subs = await listSubscriptions(c.id);
+          for (const s of subs) totalSpent += subscriptionRevenue(s);
+        } catch (e) {
+          log.warn({ customer: c.id, err: String(e) }, "subscriptions failed");
+        }
+
         await db
           .insert(revenuecatSubscriber)
-          .values({ appUserId: c.id, raw: c as Record<string, unknown> })
+          .values({
+            appUserId: c.id,
+            isActive: entitlements.length > 0,
+            activeEntitlements: entitlements,
+            totalSpentUsd: String(totalSpent),
+            originalPurchaseAt: toDate(c.first_seen_at),
+            raw: c as Record<string, unknown>,
+          })
           .onConflictDoUpdate({
             target: revenuecatSubscriber.appUserId,
-            set: { updatedAt: new Date() },
+            set: {
+              isActive: entitlements.length > 0,
+              activeEntitlements: entitlements,
+              totalSpentUsd: String(totalSpent),
+              updatedAt: new Date(),
+            },
           });
         processed++;
       }

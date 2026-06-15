@@ -189,6 +189,39 @@ export async function listActiveEntitlements(customerId: string): Promise<string
     .filter((e): e is string => !!e);
 }
 
+/** All subscriptions for a customer (bounded pages). */
+export async function listSubscriptions(
+  customerId: string,
+  maxPages = 3,
+): Promise<Array<Record<string, unknown>>> {
+  const { projectId } = config();
+  const schema = z
+    .object({
+      items: z.array(z.record(z.unknown())).default([]),
+      next_page: z.string().nullable().optional(),
+    })
+    .passthrough();
+  let path: string | null =
+    `/v2/projects/${projectId}/customers/${encodeURIComponent(customerId)}/subscriptions?limit=50`;
+  const all: Array<Record<string, unknown>> = [];
+  for (let page = 0; page < maxPages && path; page++) {
+    const parsed = schema.parse(await get(path));
+    all.push(...parsed.items);
+    path = parsed.next_page ?? null;
+  }
+  return all;
+}
+
+/** Gross USD revenue for a subscription (defensive across field shapes). */
+export function subscriptionRevenue(sub: Record<string, unknown>): number {
+  return (
+    grossUsd(sub.total_revenue_in_usd) ??
+    grossUsd(sub.revenue_in_usd) ??
+    grossUsd(sub.total_revenue) ??
+    0
+  );
+}
+
 /** All purchases for a customer (bounded pages). */
 export async function listCustomerPurchases(
   customerId: string,

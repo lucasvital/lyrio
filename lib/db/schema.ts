@@ -54,6 +54,7 @@ export const revenuecatSubscriber = pgTable("revenuecat_subscriber", {
   email: text("email"),
   activeEntitlements: jsonb("active_entitlements").$type<string[]>(),
   isActive: boolean("is_active").default(false).notNull(),
+  totalSpentUsd: numeric("total_spent_usd", { precision: 14, scale: 2 }),
   originalPurchaseAt: timestamp("original_purchase_at", { withTimezone: true }),
   raw: jsonb("raw").$type<Record<string, unknown>>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

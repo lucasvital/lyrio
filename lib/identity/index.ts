@@ -43,20 +43,26 @@ export interface MatchCoverage {
  * app_user joined to both source tables.
  */
 export async function getMatchCoverage(): Promise<MatchCoverage> {
+  // PostHog presence is determined by events (we ingest events, not persons).
   const rows = await db.execute<{
     total: number;
     matched: number;
     posthog_only: number;
     revenuecat_only: number;
   }>(sql`
+    WITH flags AS (
+      SELECT
+        u.id,
+        EXISTS (SELECT 1 FROM posthog_event e WHERE e.distinct_id = u.id) AS has_ph,
+        EXISTS (SELECT 1 FROM revenuecat_subscriber r WHERE r.app_user_id = u.id) AS has_rc
+      FROM app_user u
+    )
     SELECT
       count(*)::int AS total,
-      count(*) FILTER (WHERE p.distinct_id IS NOT NULL AND r.app_user_id IS NOT NULL)::int AS matched,
-      count(*) FILTER (WHERE p.distinct_id IS NOT NULL AND r.app_user_id IS NULL)::int AS posthog_only,
-      count(*) FILTER (WHERE p.distinct_id IS NULL AND r.app_user_id IS NOT NULL)::int AS revenuecat_only
-    FROM app_user u
-    LEFT JOIN posthog_person p ON p.distinct_id = u.id
-    LEFT JOIN revenuecat_subscriber r ON r.app_user_id = u.id
+      count(*) FILTER (WHERE has_ph AND has_rc)::int AS matched,
+      count(*) FILTER (WHERE has_ph AND NOT has_rc)::int AS posthog_only,
+      count(*) FILTER (WHERE NOT has_ph AND has_rc)::int AS revenuecat_only
+    FROM flags
   `);
   const row = rows[0] ?? {
     total: 0,

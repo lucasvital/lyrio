@@ -28,10 +28,8 @@ export async function getRevenueByEngagement(range: DateRange): Promise<RevenueB
       GROUP BY distinct_id
     ),
     revenue AS (
-      SELECT app_user_id, coalesce(sum(price_usd), 0) AS revenue
-      FROM revenuecat_transaction
-      WHERE purchased_at >= ${range.from.toISOString()} AND purchased_at < ${range.to.toISOString()}
-      GROUP BY app_user_id
+      SELECT app_user_id, coalesce(total_spent_usd, 0) AS revenue
+      FROM revenuecat_subscriber
     ),
     joined AS (
       SELECT
@@ -41,7 +39,7 @@ export async function getRevenueByEngagement(range: DateRange): Promise<RevenueB
       FROM app_user u
       LEFT JOIN behavior b ON b.distinct_id = u.id
       LEFT JOIN revenue r ON r.app_user_id = u.id
-      WHERE b.events IS NOT NULL OR r.revenue IS NOT NULL
+      WHERE b.events IS NOT NULL OR r.revenue > 0
     )
     SELECT
       CASE
@@ -89,10 +87,10 @@ export async function getConversionFunnel(range: DateRange): Promise<ConversionF
     SELECT
       count(*)::int AS total,
       count(*) FILTER (WHERE a.events >= 3)::int AS activated,
-      count(*) FILTER (WHERE r.app_user_id IS NOT NULL)::int AS paying
+      count(*) FILTER (WHERE coalesce(r.total_spent_usd, 0) > 0)::int AS paying
     FROM app_user u
     LEFT JOIN activity a ON a.distinct_id = u.id
-    LEFT JOIN revenuecat_subscriber r ON r.app_user_id = u.id AND r.is_active = true
+    LEFT JOIN revenuecat_subscriber r ON r.app_user_id = u.id
   `);
   const row = rows[0] ?? { total: 0, activated: 0, paying: 0 };
   return {
@@ -137,12 +135,11 @@ export async function getUnifiedUserProfile(
       to_char(u.first_seen_at, 'YYYY-MM-DD"T"HH24:MI:SSZ') AS first_seen_at,
       to_char(u.last_seen_at, 'YYYY-MM-DD"T"HH24:MI:SSZ') AS last_seen_at,
       (SELECT count(*)::int FROM posthog_event e WHERE e.distinct_id = u.id) AS total_events,
-      (SELECT coalesce(sum(price_usd), 0)::float FROM revenuecat_transaction t WHERE t.app_user_id = u.id) AS total_revenue,
+      coalesce(r.total_spent_usd, 0)::float AS total_revenue,
       (r.app_user_id IS NOT NULL AND r.is_active) AS is_subscriber,
-      (p.distinct_id IS NOT NULL) AS has_posthog,
+      EXISTS (SELECT 1 FROM posthog_event e WHERE e.distinct_id = u.id) AS has_posthog,
       (r.app_user_id IS NOT NULL) AS has_revenuecat
     FROM app_user u
-    LEFT JOIN posthog_person p ON p.distinct_id = u.id
     LEFT JOIN revenuecat_subscriber r ON r.app_user_id = u.id
     WHERE u.id = ${id}
     LIMIT 1
