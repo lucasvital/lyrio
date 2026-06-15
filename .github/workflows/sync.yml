@@ -1,0 +1,34 @@
+name: Data Sync
+
+# Triggers the Lyrio sync endpoints on a schedule, independent of Vercel Cron
+# (works on any Vercel plan, including Hobby). The endpoints are protected by
+# CRON_SECRET. Configure these in the repo:
+#   - Secret:   CRON_SECRET   (same value as the app's CRON_SECRET env)
+#   - Variable: APP_URL       (e.g. https://your-app.vercel.app)
+
+on:
+  schedule:
+    - cron: "0 * * * *" # hourly (UTC)
+  workflow_dispatch: {} # manual run from the Actions tab
+
+concurrency:
+  group: data-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync PostHog
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.APP_URL }}/api/sync/posthog"
+          echo
+
+      - name: Sync RevenueCat
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.APP_URL }}/api/sync/revenuecat"
+          echo

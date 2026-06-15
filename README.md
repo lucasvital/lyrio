@@ -34,9 +34,25 @@ All variables live in `.env.local` (never committed). See `.env.local.example`:
 
 ## Data sync
 
-- Vercel Cron hits `GET /api/sync/posthog` and `/api/sync/revenuecat` hourly (see `vercel.json`), authorized by `CRON_SECRET`.
-- Manual sync is available from the **Settings** page.
-- Sync is incremental (cursor stored in `sync_state`) and idempotent (upsert by natural id).
+Sync is triggered by hitting the protected endpoints `POST /api/sync/posthog`
+and `POST /api/sync/revenuecat` (header `Authorization: Bearer $CRON_SECRET`).
+Three ways to trigger them:
+
+1. **GitHub Actions (default, plan-independent)** — `.github/workflows/sync.yml`
+   runs hourly. Configure in the repo:
+   - Secret `CRON_SECRET` (same value as the app env)
+   - Variable `APP_URL` (e.g. `https://your-app.vercel.app`)
+   This avoids Vercel Cron entirely (Hobby plan only allows daily cron / limited
+   jobs), so it does not conflict with crons in your other Vercel projects.
+2. **Manual** — the **Settings** page has Sync buttons (server actions).
+3. **Vercel Cron (optional, Pro plan)** — add a `vercel.json` with a `crons`
+   entry if you prefer Vercel to schedule it. Not included by default.
+
+Any external scheduler (cron-job.org, Upstash QStash, EasyCron…) works too —
+just call the endpoints with the `CRON_SECRET` bearer token.
+
+Sync is incremental (cursor stored in `sync_state`) and idempotent (upsert by
+natural id), so overlapping or repeated triggers are safe.
 
 ## Scripts
 

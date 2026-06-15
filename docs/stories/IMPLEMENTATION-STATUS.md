@@ -11,7 +11,7 @@
 | 1.3 | Authentication (Auth.js) | ✅ Done | `lib/auth.ts`, `app/api/auth/[...nextauth]/route.ts`, `app/(auth)/login/page.tsx` |
 | 1.4 | Protected app shell & navigation | ✅ Done | `middleware.ts`, `app/(dashboard)/layout.tsx`, `components/filters/period-filter.tsx` |
 | 2.1 | PostHog API client & credentials | ✅ Done | `lib/sync/posthog/client.ts`, `lib/sync/http.ts` |
-| 2.2 | PostHog incremental sync jobs | ✅ Done | `lib/sync/posthog/ingest.ts`, `lib/sync/sync-state.ts`, `app/api/sync/posthog/route.ts`, `vercel.json` |
+| 2.2 | PostHog incremental sync jobs | ✅ Done | `lib/sync/posthog/ingest.ts`, `lib/sync/sync-state.ts`, `app/api/sync/posthog/route.ts`, `.github/workflows/sync.yml` |
 | 2.3 | PostHog dashboards (separate) | ✅ Done | `app/(dashboard)/posthog/page.tsx`, `lib/analytics/posthog.ts` |
 | 3.1 | RevenueCat API client & credentials | ✅ Done | `lib/sync/revenuecat/client.ts` |
 | 3.2 | RevenueCat incremental sync jobs | ✅ Done | `lib/sync/revenuecat/ingest.ts`, `app/api/sync/revenuecat/route.ts` |
