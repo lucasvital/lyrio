@@ -4,24 +4,30 @@
 
 :root {
   --background: 250 250 252;
-  --foreground: 17 17 22;
+  --foreground: 15 15 20;
   --card: 255 255 255;
-  --muted: 113 113 130;
-  --border: 226 226 235;
-  --primary: 99 102 241;
+  --elevated: 248 248 251;
+  --muted: 108 108 124;
+  --border: 228 228 236;
+  --primary: 79 70 229;
+  --accent: 14 165 233;
   --positive: 22 163 74;
   --negative: 220 38 38;
+  --ring: 99 102 241;
 }
 
 .dark {
-  --background: 12 12 16;
-  --foreground: 237 237 244;
-  --card: 22 22 28;
-  --muted: 148 148 162;
-  --border: 39 39 48;
+  --background: 9 9 13;
+  --foreground: 237 237 245;
+  --card: 19 19 25;
+  --elevated: 26 26 33;
+  --muted: 145 145 162;
+  --border: 35 35 44;
   --primary: 129 140 248;
-  --positive: 74 222 128;
+  --accent: 56 189 248;
+  --positive: 52 211 153;
   --negative: 248 113 113;
+  --ring: 129 140 248;
 }
 
 html {
@@ -29,6 +35,30 @@ html {
 }
 
 body {
-  background: rgb(var(--background));
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgb(var(--primary) / 0.08), transparent 60%),
+    rgb(var(--background));
   color: rgb(var(--foreground));
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, Helvetica,
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 9999px;
+}
+
+::selection {
+  background: rgb(var(--primary) / 0.3);
 }

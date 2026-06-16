@@ -1,3 +1,4 @@
+import { DollarSign, TrendingUp, CreditCard, Sparkles, UserPlus, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -33,12 +34,12 @@ export default async function RevenueCatPage() {
       </PageHeader>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KpiCard label="MRR" value={formatCurrency(ov.mrr)} hint="monthly recurring" />
-        <KpiCard label="Revenue" value={formatCurrency(ov.revenue28d)} hint="last 28 days" />
-        <KpiCard label="Active subscriptions" value={formatNumber(ov.activeSubscriptions)} />
-        <KpiCard label="Active trials" value={formatNumber(ov.activeTrials)} />
-        <KpiCard label="New customers" value={formatNumber(ov.newCustomers28d)} hint="last 28 days" />
-        <KpiCard label="Active customers" value={formatNumber(ov.activeUsers28d)} hint="last 28 days" />
+        <KpiCard label="MRR" value={formatCurrency(ov.mrr)} hint="monthly recurring" icon={TrendingUp} />
+        <KpiCard label="Revenue" value={formatCurrency(ov.revenue28d)} hint="last 28 days" icon={DollarSign} />
+        <KpiCard label="Active subscriptions" value={formatNumber(ov.activeSubscriptions)} icon={CreditCard} />
+        <KpiCard label="Active trials" value={formatNumber(ov.activeTrials)} icon={Sparkles} />
+        <KpiCard label="New customers" value={formatNumber(ov.newCustomers28d)} hint="last 28 days" icon={UserPlus} />
+        <KpiCard label="Active customers" value={formatNumber(ov.activeUsers28d)} hint="last 28 days" icon={Users} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

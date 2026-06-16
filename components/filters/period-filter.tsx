@@ -23,15 +23,15 @@ export function PeriodFilter() {
   }
 
   return (
-    <div className="inline-flex rounded-lg border border-border p-0.5">
+    <div className="inline-flex rounded-lg border border-border bg-card/60 p-0.5">
       {RANGE_PRESETS.map((p) => (
         <button
           key={p.days}
           onClick={() => select(p.days)}
           className={cn(
-            "rounded-md px-3 py-1 text-sm transition-colors",
+            "rounded-md px-3 py-1 text-sm font-medium transition-colors",
             current === String(p.days)
-              ? "bg-primary text-white"
+              ? "bg-primary text-white shadow-sm"
               : "text-muted hover:text-foreground",
           )}
           aria-pressed={current === String(p.days)}

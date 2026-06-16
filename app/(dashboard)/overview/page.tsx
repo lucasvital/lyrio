@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Users, DollarSign, CreditCard, Link2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -58,10 +59,10 @@ export default async function OverviewPage({
       </PageHeader>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Active users" value={formatNumber(product.activeUsers)} hint="PostHog" />
-        <KpiCard label="MRR" value={formatCurrency(revenue.mrr)} hint="RevenueCat" />
-        <KpiCard label="Active subscriptions" value={formatNumber(revenue.activeSubscriptions)} />
-        <KpiCard label="Identity match" value={formatPercent(coverage.matchRate)} hint="unified" />
+        <KpiCard label="Active users" value={formatNumber(product.activeUsers)} hint="PostHog" icon={Users} />
+        <KpiCard label="MRR" value={formatCurrency(revenue.mrr)} hint="RevenueCat" icon={DollarSign} />
+        <KpiCard label="Active subscriptions" value={formatNumber(revenue.activeSubscriptions)} icon={CreditCard} />
+        <KpiCard label="Identity match" value={formatPercent(coverage.matchRate)} hint="unified" icon={Link2} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
