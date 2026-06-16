@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { posthogEvent } from "@/lib/db/schema";
 import { ensureSchema } from "@/lib/db/ensure-schema";
@@ -26,6 +27,17 @@ export async function syncPostHog(): Promise<SyncResult> {
   try {
     await ensureSchema();
     await markRunning(SOURCE);
+
+    // Backfill canonical user_id for legacy rows (resolve identified id when
+    // available) and seed app_user with those canonical ids. Cheap after the
+    // first pass (only touches rows where user_id is still NULL).
+    await db.execute(
+      sql`UPDATE posthog_event SET user_id = coalesce(nullif(properties->>'$user_id', ''), distinct_id) WHERE user_id IS NULL`,
+    );
+    await db.execute(
+      sql`INSERT INTO app_user (id) SELECT DISTINCT user_id FROM posthog_event WHERE user_id IS NOT NULL ON CONFLICT (id) DO NOTHING`,
+    );
+
     const checkpoint = await getCheckpoint(SOURCE);
     let after = checkpoint?.cursor ?? null;
     let next: string | null = null;
@@ -37,12 +49,18 @@ export async function syncPostHog(): Promise<SyncResult> {
       if (events.length === 0) break;
 
       for (const ev of events) {
-        await ensureAppUser(ev.distinct_id, { seenAt: new Date(ev.timestamp) });
+        const rawUserId = ev.properties?.["$user_id"];
+        const userId =
+          typeof rawUserId === "string" && rawUserId.length > 0
+            ? rawUserId
+            : ev.distinct_id;
+        await ensureAppUser(userId, { seenAt: new Date(ev.timestamp) });
         await db
           .insert(posthogEvent)
           .values({
             eventId: ev.id,
             distinctId: ev.distinct_id,
+            userId,
             event: ev.event,
             timestamp: new Date(ev.timestamp),
             properties: ev.properties,

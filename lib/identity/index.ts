@@ -53,7 +53,7 @@ export async function getMatchCoverage(): Promise<MatchCoverage> {
     WITH flags AS (
       SELECT
         u.id,
-        EXISTS (SELECT 1 FROM posthog_event e WHERE e.distinct_id = u.id) AS has_ph,
+        EXISTS (SELECT 1 FROM posthog_event e WHERE e.user_id = u.id) AS has_ph,
         EXISTS (SELECT 1 FROM revenuecat_subscriber r WHERE r.app_user_id = u.id) AS has_rc
       FROM app_user u
     )

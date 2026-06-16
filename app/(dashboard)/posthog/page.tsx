@@ -2,7 +2,8 @@ import { PageHeader } from "@/components/page-header";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Card, CardTitle } from "@/components/ui/card";
 import { TimeSeries } from "@/components/charts/time-series";
-import { Bars } from "@/components/charts/bars";
+import { Funnel } from "@/components/charts/funnel";
+import { EmptyState } from "@/components/empty-state";
 import { SyncStatus } from "@/components/sync-status";
 import { parseRange } from "@/lib/analytics/range";
 import { safeQuery } from "@/lib/analytics/safe";
@@ -52,7 +53,14 @@ export default async function PostHogPage({
         <Card>
           <CardTitle>Top events</CardTitle>
           <div className="mt-3">
-            <Bars data={topEvents} xKey="event" yKey="count" label="Count" />
+            {topEvents.length > 0 ? (
+              <Funnel
+                showRate={false}
+                steps={topEvents.map((e) => ({ label: e.event, value: e.count }))}
+              />
+            ) : (
+              <EmptyState title="No events yet" hint="Run a PostHog sync to populate." />
+            )}
           </div>
         </Card>
       </div>

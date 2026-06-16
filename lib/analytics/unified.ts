@@ -4,7 +4,7 @@ import type { DateRange } from "./posthog";
 
 /**
  * Cross-platform insights (Story 4.3): revenue correlated with behavior, joined
- * by the canonical app_user id (distinct_id == app_user_id).
+ * by the canonical app_user id (user_id == app_user_id).
  */
 
 export interface RevenueByEngagement {
@@ -22,10 +22,10 @@ export async function getRevenueByEngagement(range: DateRange): Promise<RevenueB
     revenue: number;
   }>(sql`
     WITH behavior AS (
-      SELECT distinct_id, count(*) AS events
+      SELECT user_id, count(*) AS events
       FROM posthog_event
       WHERE timestamp >= ${range.from.toISOString()} AND timestamp < ${range.to.toISOString()}
-      GROUP BY distinct_id
+      GROUP BY user_id
     ),
     revenue AS (
       SELECT app_user_id, coalesce(total_spent_usd, 0) AS revenue
@@ -37,7 +37,7 @@ export async function getRevenueByEngagement(range: DateRange): Promise<RevenueB
         coalesce(b.events, 0) AS events,
         coalesce(r.revenue, 0) AS revenue
       FROM app_user u
-      LEFT JOIN behavior b ON b.distinct_id = u.id
+      LEFT JOIN behavior b ON b.user_id = u.id
       LEFT JOIN revenue r ON r.app_user_id = u.id
       WHERE b.events IS NOT NULL OR r.revenue > 0
     )
@@ -79,17 +79,17 @@ export async function getConversionFunnel(range: DateRange): Promise<ConversionF
     paying: number;
   }>(sql`
     WITH activity AS (
-      SELECT distinct_id, count(*) AS events
+      SELECT user_id, count(*) AS events
       FROM posthog_event
       WHERE timestamp >= ${range.from.toISOString()} AND timestamp < ${range.to.toISOString()}
-      GROUP BY distinct_id
+      GROUP BY user_id
     )
     SELECT
       count(*)::int AS total,
       count(*) FILTER (WHERE a.events >= 3)::int AS activated,
       count(*) FILTER (WHERE coalesce(r.total_spent_usd, 0) > 0)::int AS paying
     FROM app_user u
-    LEFT JOIN activity a ON a.distinct_id = u.id
+    LEFT JOIN activity a ON a.user_id = u.id
     LEFT JOIN revenuecat_subscriber r ON r.app_user_id = u.id
   `);
   const row = rows[0] ?? { total: 0, activated: 0, paying: 0 };
@@ -134,10 +134,10 @@ export async function getUnifiedUserProfile(
       u.email,
       to_char(u.first_seen_at, 'YYYY-MM-DD"T"HH24:MI:SSZ') AS first_seen_at,
       to_char(u.last_seen_at, 'YYYY-MM-DD"T"HH24:MI:SSZ') AS last_seen_at,
-      (SELECT count(*)::int FROM posthog_event e WHERE e.distinct_id = u.id) AS total_events,
+      (SELECT count(*)::int FROM posthog_event e WHERE e.user_id = u.id) AS total_events,
       coalesce(r.total_spent_usd, 0)::float AS total_revenue,
       (r.app_user_id IS NOT NULL AND r.is_active) AS is_subscriber,
-      EXISTS (SELECT 1 FROM posthog_event e WHERE e.distinct_id = u.id) AS has_posthog,
+      EXISTS (SELECT 1 FROM posthog_event e WHERE e.user_id = u.id) AS has_posthog,
       (r.app_user_id IS NOT NULL) AS has_revenuecat
     FROM app_user u
     LEFT JOIN revenuecat_subscriber r ON r.app_user_id = u.id

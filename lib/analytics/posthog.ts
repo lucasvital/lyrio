@@ -15,7 +15,7 @@ export interface ProductKpis {
 export async function getProductKpis(range: DateRange): Promise<ProductKpis> {
   const rows = await db.execute<{ active_users: number; total_events: number }>(sql`
     SELECT
-      count(DISTINCT distinct_id)::int AS active_users,
+      count(DISTINCT user_id)::int AS active_users,
       count(*)::int AS total_events
     FROM posthog_event
     WHERE timestamp >= ${range.from.toISOString()} AND timestamp < ${range.to.toISOString()}
@@ -39,7 +39,7 @@ export async function getDailyActivity(range: DateRange): Promise<DailyPoint[]> 
     SELECT
       to_char(date_trunc('day', timestamp), 'YYYY-MM-DD') AS date,
       count(*)::int AS events,
-      count(DISTINCT distinct_id)::int AS users
+      count(DISTINCT user_id)::int AS users
     FROM posthog_event
     WHERE timestamp >= ${range.from.toISOString()} AND timestamp < ${range.to.toISOString()}
     GROUP BY 1

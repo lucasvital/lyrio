@@ -23,10 +23,12 @@ const STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS "posthog_event" (
     "event_id" text PRIMARY KEY NOT NULL,
     "distinct_id" text NOT NULL,
+    "user_id" text,
     "event" text NOT NULL,
     "timestamp" timestamp with time zone NOT NULL,
     "properties" jsonb
   )`,
+  `ALTER TABLE "posthog_event" ADD COLUMN IF NOT EXISTS "user_id" text`,
   `CREATE TABLE IF NOT EXISTS "revenuecat_subscriber" (
     "app_user_id" text PRIMARY KEY NOT NULL REFERENCES "app_user"("id") ON DELETE CASCADE,
     "email" text,
@@ -76,6 +78,7 @@ const STATEMENTS = [
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS "posthog_event_distinct_idx" ON "posthog_event" ("distinct_id")`,
+  `CREATE INDEX IF NOT EXISTS "posthog_event_user_idx" ON "posthog_event" ("user_id")`,
   `CREATE INDEX IF NOT EXISTS "posthog_event_time_idx" ON "posthog_event" ("timestamp")`,
   `CREATE INDEX IF NOT EXISTS "posthog_event_event_idx" ON "posthog_event" ("event")`,
   `CREATE INDEX IF NOT EXISTS "rc_tx_user_idx" ON "revenuecat_transaction" ("app_user_id")`,

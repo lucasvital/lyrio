@@ -36,12 +36,14 @@ export const posthogEvent = pgTable(
   {
     eventId: text("event_id").primaryKey(),
     distinctId: text("distinct_id").notNull(),
+    userId: text("user_id"),
     event: text("event").notNull(),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     properties: jsonb("properties").$type<Record<string, unknown>>(),
   },
   (t) => ({
     byDistinct: index("posthog_event_distinct_idx").on(t.distinctId),
+    byUser: index("posthog_event_user_idx").on(t.userId),
     byTime: index("posthog_event_time_idx").on(t.timestamp),
     byEvent: index("posthog_event_event_idx").on(t.event),
   }),
