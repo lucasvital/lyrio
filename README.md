@@ -30,7 +30,7 @@ All variables live in `.env.local` (never committed). See `.env.local.example`:
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | The single admin login (email + password) |
 | `POSTHOG_API_KEY` / `POSTHOG_PROJECT_ID` | PostHog Cloud US API |
 | `REVENUECAT_API_KEY` / `REVENUECAT_PROJECT_ID` | RevenueCat API |
-| `CRON_SECRET` | Protects `/api/sync/*` and Vercel Cron |
+| `CRON_SECRET` | Optional. If set, protects `/api/sync/*`; if unset, those endpoints are open |
 
 ## Data sync
 

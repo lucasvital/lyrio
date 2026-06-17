@@ -1,15 +1,17 @@
 name: Data Sync
 
-# Triggers the Lyrio sync endpoints on a schedule, independent of Vercel Cron
-# (works on any Vercel plan). The endpoints are protected by CRON_SECRET.
-# Configure in the repo (Settings → Secrets and variables → Actions):
-#   - Secret:   CRON_SECRET   (same value as the app's CRON_SECRET env)
+# Triggers the Lyrio sync endpoints on a schedule, independent of Vercel Cron.
+# Only APP_URL is required. CRON_SECRET is optional:
+#   - if the app has CRON_SECRET set, also set the same secret here;
+#   - if not, the endpoints are open and APP_URL alone is enough.
+# Configure in Settings → Secrets and variables → Actions:
 #   - Variable: APP_URL       (e.g. https://your-app.vercel.app)
+#   - Secret:   CRON_SECRET   (optional)
 
 on:
   schedule:
     - cron: "0 * * * *" # hourly (UTC)
-  workflow_dispatch: {} # manual run from the Actions tab
+  workflow_dispatch: {}
 
 concurrency:
   group: data-sync
@@ -25,28 +27,22 @@ jobs:
       - name: Check configuration
         id: cfg
         run: |
-          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "::warning::APP_URL variable and/or CRON_SECRET secret are not set — skipping sync."
-            echo "Configure them in Settings → Secrets and variables → Actions."
+          if [ -z "$APP_URL" ]; then
+            echo "::warning::APP_URL variable is not set — skipping sync. Set it in Settings → Secrets and variables → Actions → Variables."
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Sync PostHog
+      - name: Run sync
         if: steps.cfg.outputs.configured == 'true'
         run: |
           base="${APP_URL%/}"
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${base}/api/sync/posthog"
-          echo
-
-      - name: Sync RevenueCat
-        if: steps.cfg.outputs.configured == 'true'
-        run: |
-          base="${APP_URL%/}"
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${base}/api/sync/revenuecat"
-          echo
+          args=(-sS --fail-with-body -X POST)
+          if [ -n "$CRON_SECRET" ]; then
+            args+=(-H "Authorization: Bearer ${CRON_SECRET}")
+          fi
+          echo "→ PostHog"
+          curl "${args[@]}" "${base}/api/sync/posthog"; echo
+          echo "→ RevenueCat"
+          curl "${args[@]}" "${base}/api/sync/revenuecat"; echo
