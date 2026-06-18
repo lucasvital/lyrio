@@ -23,9 +23,6 @@ const serverEnvSchema = z.object({
   REVENUECAT_BASE_URL: z.string().url().default("https://api.revenuecat.com"),
 
   CRON_SECRET: z.string().optional(),
-
-  // Optional Kiwify webhook signature token (HMAC-SHA1). If unset, webhooks are accepted.
-  KIWIFY_WEBHOOK_TOKEN: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
