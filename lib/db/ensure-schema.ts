@@ -83,6 +83,36 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "posthog_event_event_idx" ON "posthog_event" ("event")`,
   `CREATE INDEX IF NOT EXISTS "rc_tx_user_idx" ON "revenuecat_transaction" ("app_user_id")`,
   `CREATE INDEX IF NOT EXISTS "rc_tx_time_idx" ON "revenuecat_transaction" ("purchased_at")`,
+  `CREATE TABLE IF NOT EXISTS "kiwify_event" (
+    "id" text PRIMARY KEY NOT NULL,
+    "project" text NOT NULL,
+    "event_type" text,
+    "order_id" text,
+    "subscription_id" text,
+    "payload" jsonb,
+    "received_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "kiwify_event_project_idx" ON "kiwify_event" ("project")`,
+  `CREATE INDEX IF NOT EXISTS "kiwify_event_time_idx" ON "kiwify_event" ("received_at")`,
+  `CREATE TABLE IF NOT EXISTS "kiwify_subscription" (
+    "subscription_id" text PRIMARY KEY NOT NULL,
+    "project" text NOT NULL,
+    "status" text,
+    "customer_email" text,
+    "customer_name" text,
+    "product_id" text,
+    "product_name" text,
+    "plan" text,
+    "amount" numeric(14, 2),
+    "currency" text,
+    "started_at" timestamp with time zone,
+    "next_charge_at" timestamp with time zone,
+    "canceled_at" timestamp with time zone,
+    "raw" jsonb,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "kiwify_sub_project_idx" ON "kiwify_subscription" ("project")`,
+  `CREATE INDEX IF NOT EXISTS "kiwify_sub_status_idx" ON "kiwify_subscription" ("status")`,
 ];
 
 let ensured = false;

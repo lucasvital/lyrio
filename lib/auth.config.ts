@@ -17,7 +17,8 @@ export const authConfig = {
         pathname === "/login" ||
         pathname.startsWith("/api/auth") ||
         pathname === "/api/health" ||
-        pathname.startsWith("/api/sync"); // guarded by CRON_SECRET instead
+        pathname.startsWith("/api/sync") || // guarded by CRON_SECRET instead
+        pathname.startsWith("/api/webhooks"); // external webhooks (Kiwify)
 
       if (isPublic) return true;
       return !!auth?.user; // false → redirect to signIn page

@@ -112,10 +112,57 @@ export const rcChart = pgTable("rc_chart", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** Raw Kiwify webhook log (append-only), one row per received event. */
+export const kiwifyEvent = pgTable(
+  "kiwify_event",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    project: text("project").notNull(),
+    eventType: text("event_type"),
+    orderId: text("order_id"),
+    subscriptionId: text("subscription_id"),
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    byProject: index("kiwify_event_project_idx").on(t.project),
+    byTime: index("kiwify_event_time_idx").on(t.receivedAt),
+  }),
+);
+
+/** Current Kiwify subscription state (upsert by subscription id), tagged by project/expert. */
+export const kiwifySubscription = pgTable(
+  "kiwify_subscription",
+  {
+    subscriptionId: text("subscription_id").primaryKey(),
+    project: text("project").notNull(),
+    status: text("status"),
+    customerEmail: text("customer_email"),
+    customerName: text("customer_name"),
+    productId: text("product_id"),
+    productName: text("product_name"),
+    plan: text("plan"),
+    amount: numeric("amount", { precision: 14, scale: 2 }),
+    currency: text("currency"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    nextChargeAt: timestamp("next_charge_at", { withTimezone: true }),
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
+    raw: jsonb("raw").$type<Record<string, unknown>>(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    byProject: index("kiwify_sub_project_idx").on(t.project),
+    byStatus: index("kiwify_sub_status_idx").on(t.status),
+  }),
+);
+
 export type AppUser = typeof appUser.$inferSelect;
 export type PosthogEvent = typeof posthogEvent.$inferSelect;
 export type RevenuecatTransaction = typeof revenuecatTransaction.$inferSelect;
 export type SyncStateRow = typeof syncState.$inferSelect;
+export type KiwifySubscription = typeof kiwifySubscription.$inferSelect;
 
 // Avoid unused import warning for primaryKey (kept for future composite keys)
 void primaryKey;

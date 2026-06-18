@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   BarChart3,
   DollarSign,
+  ShoppingBag,
   Layers,
   Settings,
   type LucideIcon,
@@ -16,6 +17,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/posthog", label: "PostHog", icon: BarChart3 },
   { href: "/revenuecat", label: "RevenueCat", icon: DollarSign },
+  { href: "/kiwify", label: "Kiwify", icon: ShoppingBag },
   { href: "/unified", label: "Unified", icon: Layers },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
