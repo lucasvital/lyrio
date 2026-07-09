@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   initDatabase,
+  triggerAttributionSync,
   triggerPostHogSync,
   triggerRevenueCatSync,
 } from "@/lib/actions";
@@ -49,7 +50,17 @@ export function SyncButtons() {
         >
           Sync RevenueCat
         </button>
+        <button
+          onClick={() => act(triggerAttributionSync, "Attribution")}
+          disabled={pending}
+          className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        >
+          Sync Attribution
+        </button>
       </div>
+      <p className="text-xs text-muted">
+        Ordem recomendada: PostHog → RevenueCat → Attribution (o último cruza os dois).
+      </p>
       {pending && <p className="text-xs text-muted">Working…</p>}
       {message && <p className="text-xs text-muted">{message}</p>}
     </div>

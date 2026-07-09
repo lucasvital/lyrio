@@ -112,10 +112,72 @@ export const rcChart = pgTable("rc_chart", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
+ * Influencer / referral partner registry (mobile UTM attribution).
+ * Coupon codes map a purchase back to the influencer that drove it; commission
+ * rate drives the payout report. See docs/architecture/data-models.md.
+ */
+export const influencer = pgTable("influencer", {
+  id: text("id").primaryKey(), // slug, e.g. "joao-silva"
+  name: text("name").notNull(),
+  handle: text("handle"), // @instagram / channel
+  platform: text("platform"), // instagram | youtube | tiktok | other
+  couponCodes: jsonb("coupon_codes").$type<string[]>().default([]).notNull(),
+  commissionRate: numeric("commission_rate", { precision: 5, scale: 4 })
+    .default("0.30")
+    .notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Per-user acquisition attribution. Auto fields are extracted from the earliest
+ * PostHog signals (UTMs, referrer, install/deep-link payloads, coupon codes);
+ * manual fields are the audited override. On re-sync only the auto fields are
+ * refreshed — manual attribution is never clobbered.
+ */
+export const userAttribution = pgTable(
+  "user_attribution",
+  {
+    appUserId: text("app_user_id")
+      .primaryKey()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    firstTouchAt: timestamp("first_touch_at", { withTimezone: true }),
+    firstEvent: text("first_event"),
+    // Auto-extracted first-touch signals (best-effort, may be null on mobile).
+    autoSource: text("auto_source"),
+    autoMedium: text("auto_medium"),
+    autoCampaign: text("auto_campaign"),
+    autoContent: text("auto_content"),
+    autoTerm: text("auto_term"),
+    autoReferrer: text("auto_referrer"),
+    autoReferringDomain: text("auto_referring_domain"),
+    autoUrl: text("auto_url"),
+    autoNetwork: text("auto_network"), // mobile attribution network
+    couponCode: text("coupon_code"), // from courtesy_applied
+    signals: jsonb("signals").$type<Record<string, unknown>>(), // raw audit bag
+    // Manual audit / override.
+    manualInfluencerId: text("manual_influencer_id").references(() => influencer.id, {
+      onDelete: "set null",
+    }),
+    manualSource: text("manual_source"), // freeform origin when no influencer row
+    note: text("note"),
+    attributedBy: text("attributed_by"),
+    attributedAt: timestamp("attributed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    byInfluencer: index("user_attribution_influencer_idx").on(t.manualInfluencerId),
+    byCoupon: index("user_attribution_coupon_idx").on(t.couponCode),
+  }),
+);
+
 export type AppUser = typeof appUser.$inferSelect;
 export type PosthogEvent = typeof posthogEvent.$inferSelect;
 export type RevenuecatTransaction = typeof revenuecatTransaction.$inferSelect;
 export type SyncStateRow = typeof syncState.$inferSelect;
+export type Influencer = typeof influencer.$inferSelect;
+export type UserAttribution = typeof userAttribution.$inferSelect;
 
 // Avoid unused import warning for primaryKey (kept for future composite keys)
 void primaryKey;

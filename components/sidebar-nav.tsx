@@ -7,6 +7,8 @@ import {
   BarChart3,
   DollarSign,
   Layers,
+  Target,
+  Users,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -17,6 +19,8 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/posthog", label: "PostHog", icon: BarChart3 },
   { href: "/revenuecat", label: "RevenueCat", icon: DollarSign },
   { href: "/unified", label: "Unified", icon: Layers },
+  { href: "/attribution", label: "Atribuição", icon: Target },
+  { href: "/influencers", label: "Influencers", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

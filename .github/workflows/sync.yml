@@ -46,3 +46,5 @@ jobs:
           curl "${args[@]}" "${base}/api/sync/posthog"; echo
           echo "→ RevenueCat"
           curl "${args[@]}" "${base}/api/sync/revenuecat"; echo
+          echo "→ Attribution"
+          curl "${args[@]}" "${base}/api/sync/attribution"; echo
