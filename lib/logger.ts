@@ -5,7 +5,7 @@ export const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
 });
 
-export type SyncSource = "posthog" | "revenuecat";
+export type SyncSource = "posthog" | "revenuecat" | "attribution";
 
 export function syncLogger(source: SyncSource) {
   return logger.child({ source });

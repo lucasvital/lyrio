@@ -15,6 +15,13 @@
       "when": 1781609526246,
       "tag": "0001_same_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0002_mobile_attribution",
+      "breakpoints": true
     }
   ]
 }
