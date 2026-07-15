@@ -42,9 +42,28 @@ jobs:
           if [ -n "$CRON_SECRET" ]; then
             args+=(-H "Authorization: Bearer ${CRON_SECRET}")
           fi
-          echo "→ PostHog"
-          curl "${args[@]}" "${base}/api/sync/posthog"; echo
-          echo "→ RevenueCat"
-          curl "${args[@]}" "${base}/api/sync/revenuecat"; echo
-          echo "→ Attribution"
-          curl "${args[@]}" "${base}/api/sync/attribution"; echo
+
+          # Call an endpoint repeatedly until it reports `done: true` (each call
+          # processes a time-bounded batch and resumes via cursor). Bounded so a
+          # stuck sync can't loop forever.
+          run_until_done() {
+            local name="$1" url="$2"
+            echo "→ ${name}"
+            for i in $(seq 1 60); do
+              resp="$(curl "${args[@]}" "$url")" || { echo "  call failed"; return 1; }
+              status="$(echo "$resp" | jq -r '.status // "ok"')"
+              ingested="$(echo "$resp" | jq -r '.ingested // 0')"
+              done="$(echo "$resp" | jq -r '.done // true')"
+              echo "  batch ${i}: status=${status} ingested=${ingested} done=${done}"
+              if [ "$status" = "error" ]; then
+                echo "  error: $(echo "$resp" | jq -r '.message // ""')"; return 1
+              fi
+              [ "$done" = "true" ] && { echo "  ${name} complete"; return 0; }
+              sleep 2
+            done
+            echo "  ${name}: reached batch cap, will continue next run"
+          }
+
+          run_until_done "PostHog" "${base}/api/sync/posthog"
+          run_until_done "RevenueCat" "${base}/api/sync/revenuecat"
+          run_until_done "Attribution" "${base}/api/sync/attribution"

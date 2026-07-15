@@ -12,16 +12,34 @@ export function SyncButtons() {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
-  function act(fn: () => Promise<{ message?: string; status?: string; ingested?: number }>, label: string) {
+  function act(
+    fn: () => Promise<{
+      message?: string;
+      status?: string;
+      ingested?: number;
+      done?: boolean;
+    }>,
+    label: string,
+  ) {
     setMessage(null);
     startTransition(async () => {
-      const result = await fn();
-      if ("ingested" in result && result.status === "ok") {
-        setMessage(`${label}: synced ${result.ingested} records`);
-      } else if ("status" in result && result.status === "error") {
-        setMessage(`${label}: error — ${result.message ?? "unknown"}`);
-      } else {
-        setMessage(`${label}: ${result.message ?? "done"}`);
+      // Keep invoking until the sync reports it drained the backlog (`done`).
+      // Non-sync actions (e.g. Initialize database) return no `done` and run once.
+      let total = 0;
+      for (let i = 0; i < 500; i++) {
+        const result = await fn();
+        if ("status" in result && result.status === "error") {
+          setMessage(`${label}: error — ${result.message ?? "unknown"}`);
+          return;
+        }
+        if ("ingested" in result) {
+          total += result.ingested ?? 0;
+          const state = result.done === false ? "…" : " (completo)";
+          setMessage(`${label}: ${total} sincronizados${state}`);
+        } else {
+          setMessage(`${label}: ${result.message ?? "done"}`);
+        }
+        if (result.done !== false) break; // done, or a one-shot action
       }
     });
   }

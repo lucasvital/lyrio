@@ -12,6 +12,7 @@ export interface AttributionSyncResult {
   ingested: number;
   cursor: null;
   status: "ok" | "error";
+  done: boolean;
   message?: string;
 }
 
@@ -142,11 +143,11 @@ export async function syncAttribution(): Promise<AttributionSyncResult> {
 
     await markOk(SOURCE, null, ingested);
     log.info({ ingested }, "attribution sync ok");
-    return { source: SOURCE, ingested, cursor: null, status: "ok" };
+    return { source: SOURCE, ingested, cursor: null, status: "ok", done: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markError(SOURCE, message);
     log.error({ err: message }, "attribution sync failed");
-    return { source: SOURCE, ingested: 0, cursor: null, status: "error", message };
+    return { source: SOURCE, ingested: 0, cursor: null, status: "error", done: false, message };
   }
 }

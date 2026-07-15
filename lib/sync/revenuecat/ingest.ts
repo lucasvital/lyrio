@@ -21,13 +21,17 @@ import {
 const CHARTS = ["mrr", "revenue", "actives", "trials"] as const;
 
 const SOURCE = "revenuecat" as const;
-const MAX_CUSTOMERS_PER_RUN = 200; // 1 enrichment call each; resumes via cursor
+// Process customers until the list is exhausted, bounded by a wall-clock budget
+// so a single serverless invocation stays under its timeout (each customer costs
+// a couple of enrichment calls). `done` tells the caller to invoke again.
+const MAX_RUN_MS = 45_000;
 
 export interface SyncResult {
   source: typeof SOURCE;
   ingested: number;
   cursor: string | null;
   status: "ok" | "error";
+  done: boolean;
   message?: string;
 }
 
@@ -105,11 +109,14 @@ export async function syncRevenueCat(): Promise<SyncResult> {
     const checkpoint = await getCheckpoint(SOURCE);
     let nextPath: string | null = checkpoint?.cursor ?? null;
     let processed = 0;
+    let done = false;
 
-    while (processed < MAX_CUSTOMERS_PER_RUN) {
+    const startedAt = Date.now();
+    while (true) {
       const { customers, nextPage } = await listCustomersPage(nextPath);
       if (customers.length === 0) {
         nextPath = nextPage;
+        if (!nextPath) done = true;
         break;
       }
       for (const c of customers) {
@@ -180,17 +187,20 @@ export async function syncRevenueCat(): Promise<SyncResult> {
         processed++;
       }
       nextPath = nextPage;
-      if (!nextPath) break;
-      if (processed >= MAX_CUSTOMERS_PER_RUN) break;
+      if (!nextPath) {
+        done = true;
+        break;
+      }
+      if (Date.now() - startedAt > MAX_RUN_MS) break; // resume on the next call
     }
 
     await markOk(SOURCE, nextPath ?? null, processed);
-    log.info({ overview: ov, customers: processed }, "revenuecat sync ok");
-    return { source: SOURCE, ingested: processed, cursor: nextPath ?? null, status: "ok" };
+    log.info({ customers: processed, done }, "revenuecat sync ok");
+    return { source: SOURCE, ingested: processed, cursor: nextPath ?? null, status: "ok", done };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markError(SOURCE, message);
     log.error({ err: message }, "revenuecat sync failed");
-    return { source: SOURCE, ingested: 0, cursor: null, status: "error", message };
+    return { source: SOURCE, ingested: 0, cursor: null, status: "error", done: false, message };
   }
 }
