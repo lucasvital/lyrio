@@ -8,7 +8,9 @@ import {
   couponFromAttributes,
   fetchChart,
   fetchOverviewMetrics,
+  grossUsd,
   listCustomerAttributes,
+  listCustomerPurchases,
   listCustomersPage,
   listSubscriptions,
   normalizeAttributes,
@@ -114,16 +116,13 @@ export async function syncRevenueCat(): Promise<SyncResult> {
       for (const c of customers) {
         await ensureAppUser(c.id, { seenAt: toDate(c.first_seen_at) ?? new Date() });
 
-        // Per-customer enrichment from subscriptions (one call): the subscription
-        // object is authoritative — `gives_access` for active status,
-        // `total_revenue_in_usd.gross` for lifetime spend.
-        let totalSpent = 0;
+        // Active status + entitlements from subscriptions (`gives_access`).
         let isActive = false;
         const products: string[] = [];
+        let subs: Array<Record<string, unknown>> = [];
         try {
-          const subs = await listSubscriptions(c.id);
+          subs = await listSubscriptions(c.id);
           for (const s of subs) {
-            totalSpent += subscriptionRevenue(s);
             if (s.gives_access === true) {
               isActive = true;
               if (typeof s.product_id === "string") products.push(s.product_id);
@@ -131,6 +130,22 @@ export async function syncRevenueCat(): Promise<SyncResult> {
           }
         } catch (e) {
           log.warn({ customer: c.id, err: String(e) }, "subscriptions fetch failed");
+        }
+
+        // Lifetime spend from purchases: each purchase carries `revenue_in_usd`,
+        // which is the authoritative per-transaction USD amount. The subscription
+        // object's `total_revenue_in_usd` is often absent on v2 and reads as 0,
+        // which made every payer look free. Fall back to subscriptions only if
+        // the purchases endpoint yields nothing.
+        let totalSpent = 0;
+        try {
+          const purchases = await listCustomerPurchases(c.id);
+          for (const p of purchases) totalSpent += grossUsd(p.revenue_in_usd) ?? 0;
+        } catch (e) {
+          log.warn({ customer: c.id, err: String(e) }, "purchases fetch failed");
+        }
+        if (totalSpent === 0) {
+          for (const s of subs) totalSpent += subscriptionRevenue(s);
         }
 
         // Customer attributes hold the real per-influencer coupon (`coupom_code`).
