@@ -5,10 +5,13 @@ import { ensureAppUser } from "@/lib/identity";
 import { syncLogger } from "@/lib/logger";
 import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-state";
 import {
+  couponFromAttributes,
   fetchChart,
   fetchOverviewMetrics,
+  listCustomerAttributes,
   listCustomersPage,
   listSubscriptions,
+  normalizeAttributes,
   rcProjectId,
   subscriptionRevenue,
   toDate,
@@ -130,6 +133,16 @@ export async function syncRevenueCat(): Promise<SyncResult> {
           log.warn({ customer: c.id, err: String(e) }, "subscriptions fetch failed");
         }
 
+        // Customer attributes hold the real per-influencer coupon (`coupom_code`).
+        // Prefer any attributes already inlined on the customer object; otherwise
+        // fetch them. Never fatal — attribution degrades gracefully without it.
+        let attributes = normalizeAttributes(c);
+        if (!couponFromAttributes(attributes)) {
+          const fetched = await listCustomerAttributes(c.id);
+          if (Object.keys(fetched).length > 0) attributes = fetched;
+        }
+        const couponCode = couponFromAttributes(attributes);
+
         await db
           .insert(revenuecatSubscriber)
           .values({
@@ -138,6 +151,8 @@ export async function syncRevenueCat(): Promise<SyncResult> {
             activeEntitlements: products,
             totalSpentUsd: String(totalSpent),
             originalPurchaseAt: toDate(c.first_seen_at),
+            couponCode,
+            attributes: Object.keys(attributes).length > 0 ? attributes : null,
             raw: c as Record<string, unknown>,
           })
           .onConflictDoUpdate({
@@ -146,6 +161,8 @@ export async function syncRevenueCat(): Promise<SyncResult> {
               isActive,
               activeEntitlements: products,
               totalSpentUsd: String(totalSpent),
+              couponCode,
+              attributes: Object.keys(attributes).length > 0 ? attributes : null,
               updatedAt: new Date(),
             },
           });

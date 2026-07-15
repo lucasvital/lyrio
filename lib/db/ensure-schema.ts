@@ -39,8 +39,10 @@ const STATEMENTS = [
     "raw" jsonb,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
-  // Backfill column for pre-existing installs.
+  // Backfill columns for pre-existing installs.
   `ALTER TABLE "revenuecat_subscriber" ADD COLUMN IF NOT EXISTS "total_spent_usd" numeric(14, 2)`,
+  `ALTER TABLE "revenuecat_subscriber" ADD COLUMN IF NOT EXISTS "coupon_code" text`,
+  `ALTER TABLE "revenuecat_subscriber" ADD COLUMN IF NOT EXISTS "attributes" jsonb`,
   `CREATE TABLE IF NOT EXISTS "rc_chart" (
     "name" text PRIMARY KEY NOT NULL,
     "unit" text,

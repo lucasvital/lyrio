@@ -11,9 +11,16 @@ ou chega com nomes de propriedade diferentes dependendo do evento/SDK. Então o 
 
 1. **Automático** — extraímos o melhor sinal de first-touch de cada usuário a partir dos
    eventos do PostHog (UTMs, referrer, URL, payload de `install_attributed` /
-   `Deep Link Opened`) e o **cupom**, priorizando o cupom da compra
-   (`purchase_made.coupon_code`) e caindo para o de cortesia
-   (`courtesy_applied.coupon_code`).
+   `Deep Link Opened`) e o **cupom**. O cupom real por influencer vem dos
+   **atributos do cliente no RevenueCat** (atributo `coupom_code`, ex:
+   `PADRELEONARDO`) — o PostHog só recebe a categoria genérica (`influencer`),
+   então o RevenueCat é a fonte autoritativa. A resolução usa
+   `coalesce(coupon RevenueCat, coupon PostHog)`.
+
+   > **Importante:** para atribuir sozinho, cada cupom de influencer precisa ter um
+   > **código único** (ex: `PADRELEONARDO`, `JOAO20`) no atributo `coupom_code` do
+   > RevenueCat. Um código genérico (`influencer` pra todos) não diz *qual*
+   > influencer — esses ficam para atribuição manual.
 2. **Manual** — para quem não tem sinal, o auditor abre a linha na aba **Atribuição**,
    vê data + URL + referrer de origem e escolhe o influencer (ou digita a origem).
 
