@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   initDatabase,
+  resetSyncCursors,
   triggerAttributionSync,
   triggerPostHogSync,
   triggerRevenueCatSync,
@@ -75,9 +76,26 @@ export function SyncButtons() {
         >
           Sync Attribution
         </button>
+        <button
+          onClick={() => {
+            if (
+              confirm(
+                "Resetar os cursores e reprocessar TODO o histórico do zero? (nenhum dado é perdido)",
+              )
+            ) {
+              act(resetSyncCursors, "Reset");
+            }
+          }}
+          disabled={pending}
+          className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+        >
+          Resetar cursores
+        </button>
       </div>
       <p className="text-xs text-muted">
-        Ordem recomendada: PostHog → RevenueCat → Attribution (o último cruza os dois).
+        Ordem recomendada: PostHog → RevenueCat → Attribution (o último cruza os dois). Cada
+        botão roda em lote até completar. Use “Resetar cursores” para reprocessar o histórico
+        inteiro do zero.
       </p>
       {pending && <p className="text-xs text-muted">Working…</p>}
       {message && <p className="text-xs text-muted">{message}</p>}
