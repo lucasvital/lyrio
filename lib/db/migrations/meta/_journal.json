@@ -29,6 +29,13 @@
       "when": 1781800000000,
       "tag": "0003_attribution_sandbox",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0004_rc_coupon_attributes",
+      "breakpoints": true
     }
   ]
 }

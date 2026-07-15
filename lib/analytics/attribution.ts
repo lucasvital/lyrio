@@ -14,13 +14,24 @@ import type { Influencer } from "@/lib/db/schema";
  *   5. unknown (needs manual attribution)
  */
 
-/** Correlated subquery: the influencer whose registered coupon codes contain a user's coupon. */
-const couponInfluencer = (alias: string) => sql.raw(`
+/**
+ * The effective coupon for matching/display: the real per-influencer code from
+ * RevenueCat attributes (`r.coupon_code`) wins over the generic PostHog category
+ * (`ua.coupon_code`). Both aliases must be in scope where this is used.
+ */
+const EFFECTIVE_COUPON = "coalesce(r.coupon_code, ua.coupon_code)";
+
+/**
+ * Correlated subquery: the influencer whose registered coupon codes contain the
+ * given coupon expression (case-insensitive). `couponExpr` is composed from
+ * hardcoded column references, never user input.
+ */
+const couponInfluencer = (couponExpr: string) => sql.raw(`
   (SELECT i.id FROM influencer i
-    WHERE ${alias}.coupon_code IS NOT NULL
+    WHERE (${couponExpr}) IS NOT NULL
       AND EXISTS (
         SELECT 1 FROM jsonb_array_elements_text(i.coupon_codes) AS cc(code)
-        WHERE lower(cc.code) = lower(${alias}.coupon_code)
+        WHERE lower(cc.code) = lower(${couponExpr})
       )
     LIMIT 1)
 `);
@@ -117,7 +128,7 @@ export async function getPayersWithAttribution(
   if (search && search.trim()) {
     const q = `%${search.trim().toLowerCase()}%`;
     conditions.push(
-      sql`(lower(u.id) LIKE ${q} OR lower(coalesce(u.email, '')) LIKE ${q} OR lower(coalesce(ua.coupon_code, '')) LIKE ${q})`,
+      sql`(lower(u.id) LIKE ${q} OR lower(coalesce(u.email, '')) LIKE ${q} OR lower(coalesce(r.coupon_code, ua.coupon_code, '')) LIKE ${q})`,
     );
   }
   const where =
@@ -162,7 +173,7 @@ export async function getPayersWithAttribution(
       ua.first_event,
       ua.auto_source, ua.auto_medium, ua.auto_campaign,
       ua.auto_referrer, ua.auto_referring_domain, ua.auto_url, ua.auto_network,
-      ua.coupon_code,
+      coalesce(r.coupon_code, ua.coupon_code) AS coupon_code,
       ua.manual_influencer_id,
       im.name AS manual_influencer_name,
       ci.id AS coupon_influencer_id,
@@ -177,10 +188,10 @@ export async function getPayersWithAttribution(
     LEFT JOIN influencer im ON im.id = ua.manual_influencer_id
     LEFT JOIN LATERAL (
       SELECT i.id, i.name FROM influencer i
-      WHERE ua.coupon_code IS NOT NULL
+      WHERE coalesce(r.coupon_code, ua.coupon_code) IS NOT NULL
         AND EXISTS (
           SELECT 1 FROM jsonb_array_elements_text(i.coupon_codes) AS cc(code)
-          WHERE lower(cc.code) = lower(ua.coupon_code)
+          WHERE lower(cc.code) = lower(coalesce(r.coupon_code, ua.coupon_code))
         )
       LIMIT 1
     ) ci ON true
@@ -252,7 +263,7 @@ export async function getInfluencerCommissions(): Promise<InfluencerCommission[]
     WITH resolved AS (
       SELECT
         coalesce(r.total_spent_usd, 0)::float AS spent,
-        coalesce(ua.manual_influencer_id, ${couponInfluencer("ua")}) AS influencer_id
+        coalesce(ua.manual_influencer_id, ${couponInfluencer(EFFECTIVE_COUPON)}) AS influencer_id
       FROM revenuecat_subscriber r
       LEFT JOIN user_attribution ua ON ua.app_user_id = r.app_user_id
       WHERE coalesce(ua.is_sandbox, false) = false
@@ -304,7 +315,7 @@ export async function getAttributionSummary(): Promise<AttributionSummary> {
     WITH base AS (
       SELECT
         coalesce(r.total_spent_usd, 0)::float AS spent,
-        coalesce(ua.manual_influencer_id, ${couponInfluencer("ua")}) AS influencer_id,
+        coalesce(ua.manual_influencer_id, ${couponInfluencer(EFFECTIVE_COUPON)}) AS influencer_id,
         ua.manual_source,
         coalesce(ua.is_sandbox, false) AS is_sandbox
       FROM revenuecat_subscriber r

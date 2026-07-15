@@ -58,6 +58,11 @@ export const revenuecatSubscriber = pgTable("revenuecat_subscriber", {
   isActive: boolean("is_active").default(false).notNull(),
   totalSpentUsd: numeric("total_spent_usd", { precision: 14, scale: 2 }),
   originalPurchaseAt: timestamp("original_purchase_at", { withTimezone: true }),
+  // Real per-influencer coupon from RevenueCat customer attributes (e.g.
+  // `coupom_code` = "PADRELEONARDO"). The PostHog side only carries the generic
+  // category ("influencer"), so this is the authoritative attribution code.
+  couponCode: text("coupon_code"),
+  attributes: jsonb("attributes").$type<Record<string, string>>(),
   raw: jsonb("raw").$type<Record<string, unknown>>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

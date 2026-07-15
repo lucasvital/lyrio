@@ -224,6 +224,72 @@ export async function listActiveEntitlements(customerId: string): Promise<string
     .filter((e): e is string => !!e);
 }
 
+/**
+ * Customer attributes (subscriber attributes) as a flat name→value map.
+ * The real per-influencer coupon lives here (attribute `coupom_code`, e.g.
+ * "PADRELEONARDO"), which PostHog does not receive. Defensive across shapes:
+ * a v2 `{ items: [{ name, value }] }` list, an inline `attributes` array, or an
+ * object map. Never throws — returns {} on any error so the sync keeps going.
+ */
+export async function listCustomerAttributes(
+  customerId: string,
+): Promise<Record<string, string>> {
+  const { projectId } = config();
+  try {
+    const data = await get(
+      `/v2/projects/${projectId}/customers/${encodeURIComponent(customerId)}/attributes?limit=100`,
+    );
+    return normalizeAttributes(data);
+  } catch {
+    return {};
+  }
+}
+
+/** Flatten RevenueCat attribute payloads (array of {name,value} or object map). */
+export function normalizeAttributes(data: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!data || typeof data !== "object") return out;
+  const d = data as Record<string, unknown>;
+  const list = Array.isArray(d.items)
+    ? d.items
+    : Array.isArray(d.attributes)
+      ? d.attributes
+      : null;
+  if (list) {
+    for (const raw of list) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const name = item.name ?? item.key;
+      const value = item.value;
+      if (typeof name === "string" && value != null && typeof value !== "object") {
+        out[name] = String(value);
+      }
+    }
+  } else if (d.attributes && typeof d.attributes === "object") {
+    for (const [k, v] of Object.entries(d.attributes as Record<string, unknown>)) {
+      const value =
+        v && typeof v === "object" ? (v as Record<string, unknown>).value : v;
+      if (value != null && typeof value !== "object") out[k] = String(value);
+    }
+  }
+  return out;
+}
+
+/**
+ * The attribution coupon from a customer's attributes. Prefers the real
+ * per-influencer code (`coupom_code` — note the typo in the app's tracking) and
+ * falls back to `coupon_code`; ignores the generic `category`.
+ */
+export function couponFromAttributes(attrs: Record<string, string>): string | null {
+  const pick = (key: string): string | null => {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k.toLowerCase() === key && v && v.trim()) return v.trim();
+    }
+    return null;
+  };
+  return pick("coupom_code") ?? pick("coupon_code") ?? null;
+}
+
 /** All subscriptions for a customer (bounded pages). */
 export async function listSubscriptions(
   customerId: string,
