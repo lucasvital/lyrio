@@ -183,6 +183,26 @@ export async function triggerAttributionSync() {
   return result;
 }
 
+/**
+ * Clear the PostHog / RevenueCat sync cursors so the next sync reprocesses from
+ * scratch (full backfill). Idempotent upserts mean no data is lost. Use this if
+ * the PostHog cursor got stuck ahead of the unread history.
+ */
+export async function resetSyncCursors(): Promise<{ ok: boolean; message: string }> {
+  try {
+    await ensureSchema();
+    await db.execute(
+      sql`UPDATE sync_state SET cursor = NULL, status = 'ok', error = NULL WHERE source IN ('posthog', 'revenuecat')`,
+    );
+    return {
+      ok: true,
+      message: "Cursores resetados. Rode PostHog → RevenueCat → Attribution para reprocessar tudo.",
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Manual attribution audit
 // ---------------------------------------------------------------------------
