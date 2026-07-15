@@ -33,8 +33,12 @@ const HAS_PROD = "bool_or(properties->>'environment' ILIKE 'PRODUCTION')";
 const HAS_SANDBOX = "bool_or(properties->>'environment' ILIKE 'SANDBOX')";
 /** Resolved environment: production wins if the user has any real purchase. */
 const ENV_EXPR = `CASE WHEN ${HAS_PROD} THEN 'PRODUCTION' WHEN ${HAS_SANDBOX} THEN 'SANDBOX' ELSE NULL END`;
-/** Sandbox-only users (test purchases, no production) — excluded from revenue/commissions. */
-const IS_SANDBOX_EXPR = `(${HAS_SANDBOX} AND NOT ${HAS_PROD})`;
+/**
+ * Sandbox-only users (test purchases, no production) — excluded from
+ * revenue/commissions. `bool_or` is NULL when a user has no `environment`
+ * property at all, so coalesce to false (the column is NOT NULL).
+ */
+const IS_SANDBOX_EXPR = `(coalesce(${HAS_SANDBOX}, false) AND NOT coalesce(${HAS_PROD}, false))`;
 
 /** Earliest raw payload for a given event (kept verbatim for manual audit). */
 function firstPayload(event: string): string {
