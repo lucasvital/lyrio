@@ -8,13 +8,17 @@ import { getCheckpoint, markError, markOk, markRunning } from "@/lib/sync/sync-s
 import { fetchEventsPage } from "./client";
 
 const SOURCE = "posthog" as const;
-const MAX_PAGES_PER_RUN = 20;
+// Keep pulling pages until the backlog is drained, bounded by a wall-clock
+// budget so a single serverless invocation stays under its timeout. `done` tells
+// the caller (Settings button / cron) whether to invoke again to continue.
+const MAX_RUN_MS = 45_000;
 
 export interface SyncResult {
   source: typeof SOURCE;
   ingested: number;
   cursor: string | null;
   status: "ok" | "error";
+  done: boolean;
   message?: string;
 }
 
@@ -43,10 +47,15 @@ export async function syncPostHog(): Promise<SyncResult> {
     let next: string | null = null;
     let ingested = 0;
     let latestTs = after;
+    let done = false;
 
-    for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
+    const startedAt = Date.now();
+    for (let page = 0; ; page++) {
       const { events, next: nextUrl } = await fetchEventsPage({ after, next });
-      if (events.length === 0) break;
+      if (events.length === 0) {
+        done = true;
+        break;
+      }
 
       for (const ev of events) {
         const rawUserId = ev.properties?.["$user_id"];
@@ -72,16 +81,20 @@ export async function syncPostHog(): Promise<SyncResult> {
 
       next = nextUrl;
       after = null; // once paginating via `next`, stop using `after`
-      if (!next) break;
+      if (!next) {
+        done = true;
+        break;
+      }
+      if (Date.now() - startedAt > MAX_RUN_MS) break; // resume on the next call
     }
 
     await markOk(SOURCE, latestTs ?? after, ingested);
-    log.info({ ingested }, "posthog sync ok");
-    return { source: SOURCE, ingested, cursor: latestTs ?? after, status: "ok" };
+    log.info({ ingested, done }, "posthog sync ok");
+    return { source: SOURCE, ingested, cursor: latestTs ?? after, status: "ok", done };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markError(SOURCE, message);
     log.error({ err: message }, "posthog sync failed");
-    return { source: SOURCE, ingested: 0, cursor: null, status: "error", message };
+    return { source: SOURCE, ingested: 0, cursor: null, status: "error", done: false, message };
   }
 }
