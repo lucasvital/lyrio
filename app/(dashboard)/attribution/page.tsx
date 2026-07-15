@@ -18,11 +18,17 @@ const PAGE_SIZE = 200;
 export default async function AttributionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; payers?: string; unattributed?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    payers?: string;
+    unattributed?: string;
+    sandbox?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const payersOnly = sp.payers !== "0";
   const unattributedOnly = sp.unattributed === "1";
+  const includeSandbox = sp.sandbox === "1";
   const search = sp.q ?? "";
 
   const [summary, payers, influencers] = await Promise.all([
@@ -32,12 +38,14 @@ export default async function AttributionPage({
       unattributedPayers: 0,
       totalRevenue: 0,
       totalCommission: 0,
+      sandboxPayers: 0,
     }),
     safeQuery(
       () =>
         getPayersWithAttribution({
           payersOnly,
           unattributedOnly,
+          includeSandbox,
           search,
           limit: PAGE_SIZE,
         }),
@@ -70,6 +78,13 @@ export default async function AttributionPage({
         />
       </div>
 
+      {summary.sandboxPayers > 0 && (
+        <p className="mt-3 text-xs text-muted">
+          {formatNumber(summary.sandboxPayers)} compra(s) de sandbox/teste excluída(s) da
+          receita e das comissões.
+        </p>
+      )}
+
       <Card className="mt-4">
         <form className="flex flex-wrap items-end gap-3" method="GET">
           <label className="text-xs text-muted">
@@ -93,6 +108,10 @@ export default async function AttributionPage({
               defaultChecked={unattributedOnly}
             />
             Só sem origem
+          </label>
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" name="sandbox" value="1" defaultChecked={includeSandbox} />
+            Incluir sandbox
           </label>
           <button
             type="submit"

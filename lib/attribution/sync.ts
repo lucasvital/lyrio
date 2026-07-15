@@ -15,9 +15,26 @@ export interface AttributionSyncResult {
   message?: string;
 }
 
-/** Earliest non-empty coupon code from `courtesy_applied` events. */
-const COUPON_EXPR =
-  "(array_agg(properties->>'coupon_code' ORDER BY timestamp ASC) FILTER (WHERE event = 'courtesy_applied' AND nullif(properties->>'coupon_code', '') IS NOT NULL))[1]";
+/** Earliest non-empty coupon code from a specific event type. */
+function couponFrom(event: string): string {
+  const e = event.replace(/'/g, "''");
+  return `(array_agg(properties->>'coupon_code' ORDER BY timestamp ASC) FILTER (WHERE event = '${e}' AND nullif(properties->>'coupon_code', '') IS NOT NULL))[1]`;
+}
+
+/**
+ * Coupon code, preferring the actual purchase (`purchase_made`) over a courtesy
+ * grant (`courtesy_applied`). RevenueCat surfaces the purchase coupon on
+ * `purchase_made`, which is the strongest origin signal for a paying user.
+ */
+const COUPON_EXPR = `coalesce(${couponFrom("purchase_made")}, ${couponFrom("courtesy_applied")})`;
+
+/** Any event's `environment` matched case-insensitively (RevenueCat: PRODUCTION/SANDBOX). */
+const HAS_PROD = "bool_or(properties->>'environment' ILIKE 'PRODUCTION')";
+const HAS_SANDBOX = "bool_or(properties->>'environment' ILIKE 'SANDBOX')";
+/** Resolved environment: production wins if the user has any real purchase. */
+const ENV_EXPR = `CASE WHEN ${HAS_PROD} THEN 'PRODUCTION' WHEN ${HAS_SANDBOX} THEN 'SANDBOX' ELSE NULL END`;
+/** Sandbox-only users (test purchases, no production) — excluded from revenue/commissions. */
+const IS_SANDBOX_EXPR = `(${HAS_SANDBOX} AND NOT ${HAS_PROD})`;
 
 /** Earliest raw payload for a given event (kept verbatim for manual audit). */
 function firstPayload(event: string): string {
@@ -57,6 +74,7 @@ export async function syncAttribution(): Promise<AttributionSyncResult> {
       'referring_domain', ${refDom},
       'first_url', ${url},
       'coupon_code', ${COUPON_EXPR},
+      'environment', ${ENV_EXPR},
       'install_attributed', ${firstPayload("install_attributed")},
       'deep_link_opened', ${firstPayload("Deep Link Opened")}
     ))`;
@@ -66,7 +84,7 @@ export async function syncAttribution(): Promise<AttributionSyncResult> {
         app_user_id, first_touch_at, first_event,
         auto_source, auto_medium, auto_campaign, auto_content, auto_term,
         auto_referrer, auto_referring_domain, auto_url, auto_network,
-        coupon_code, signals, updated_at
+        coupon_code, environment, is_sandbox, signals, updated_at
       )
       SELECT
         user_id,
@@ -74,7 +92,7 @@ export async function syncAttribution(): Promise<AttributionSyncResult> {
         (array_agg(event ORDER BY timestamp ASC))[1],
         ${src}, ${med}, ${camp}, ${cont}, ${term},
         ${ref}, ${refDom}, ${url}, ${net},
-        ${COUPON_EXPR}, ${signals}, now()
+        ${COUPON_EXPR}, ${ENV_EXPR}, ${IS_SANDBOX_EXPR}, ${signals}, now()
       FROM posthog_event
       WHERE user_id IS NOT NULL
       GROUP BY user_id
@@ -91,6 +109,8 @@ export async function syncAttribution(): Promise<AttributionSyncResult> {
         auto_url = excluded.auto_url,
         auto_network = excluded.auto_network,
         coupon_code = excluded.coupon_code,
+        environment = excluded.environment,
+        is_sandbox = excluded.is_sandbox,
         signals = excluded.signals,
         updated_at = now()
       RETURNING app_user_id

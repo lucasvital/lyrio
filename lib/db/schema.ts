@@ -154,7 +154,9 @@ export const userAttribution = pgTable(
     autoReferringDomain: text("auto_referring_domain"),
     autoUrl: text("auto_url"),
     autoNetwork: text("auto_network"), // mobile attribution network
-    couponCode: text("coupon_code"), // from courtesy_applied
+    couponCode: text("coupon_code"), // from purchase_made / courtesy_applied
+    environment: text("environment"), // PRODUCTION | SANDBOX (from purchase events)
+    isSandbox: boolean("is_sandbox").default(false).notNull(), // sandbox-only test user
     signals: jsonb("signals").$type<Record<string, unknown>>(), // raw audit bag
     // Manual audit / override.
     manualInfluencerId: text("manual_influencer_id").references(() => influencer.id, {

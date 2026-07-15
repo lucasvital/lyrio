@@ -11,8 +11,9 @@ ou chega com nomes de propriedade diferentes dependendo do evento/SDK. Então o 
 
 1. **Automático** — extraímos o melhor sinal de first-touch de cada usuário a partir dos
    eventos do PostHog (UTMs, referrer, URL, payload de `install_attributed` /
-   `Deep Link Opened`) e o **cupom** (evento `courtesy_applied` → propriedade
-   `coupon_code`).
+   `Deep Link Opened`) e o **cupom**, priorizando o cupom da compra
+   (`purchase_made.coupon_code`) e caindo para o de cortesia
+   (`courtesy_applied.coupon_code`).
 2. **Manual** — para quem não tem sinal, o auditor abre a linha na aba **Atribuição**,
    vê data + URL + referrer de origem e escolhe o influencer (ou digita a origem).
 
@@ -59,6 +60,15 @@ database** em Configurações). Migração drizzle equivalente: `0002_mobile_att
    - abra a linha para ver os sinais de origem e atribuir manualmente.
 5. Na aba **Influencers**, veja **vendas, receita e comissão** por parceiro
    (comissão = receita atribuída × taxa).
+
+## Sandbox / testes
+
+Compras de **sandbox** (TestFlight/testes) são identificadas pela propriedade
+`environment` dos eventos de compra (`PRODUCTION` / `SANDBOX`). Usuários que só têm
+compras de sandbox (nenhuma de produção) são marcados `is_sandbox` e **excluídos da
+receita, das comissões e da lista de pagantes** por padrão. Use o filtro
+**"Incluir sandbox"** na aba Atribuição para vê-los. Quem tem qualquer compra de
+produção conta normalmente.
 
 ## Notas
 
