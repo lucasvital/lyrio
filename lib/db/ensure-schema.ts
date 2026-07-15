@@ -101,6 +101,8 @@ const STATEMENTS = [
     "auto_url" text,
     "auto_network" text,
     "coupon_code" text,
+    "environment" text,
+    "is_sandbox" boolean DEFAULT false NOT NULL,
     "signals" jsonb,
     "manual_influencer_id" text REFERENCES "influencer"("id") ON DELETE SET NULL,
     "manual_source" text,
@@ -109,6 +111,9 @@ const STATEMENTS = [
     "attributed_at" timestamp with time zone,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
+  // Backfill columns for installs created before the sandbox/purchase-coupon change.
+  `ALTER TABLE "user_attribution" ADD COLUMN IF NOT EXISTS "environment" text`,
+  `ALTER TABLE "user_attribution" ADD COLUMN IF NOT EXISTS "is_sandbox" boolean DEFAULT false NOT NULL`,
   `CREATE INDEX IF NOT EXISTS "user_attribution_influencer_idx" ON "user_attribution" ("manual_influencer_id")`,
   `CREATE INDEX IF NOT EXISTS "user_attribution_coupon_idx" ON "user_attribution" ("coupon_code")`,
   `CREATE INDEX IF NOT EXISTS "posthog_event_distinct_idx" ON "posthog_event" ("distinct_id")`,

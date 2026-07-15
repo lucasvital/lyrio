@@ -57,6 +57,8 @@ export interface PayerAttribution {
   note: string | null;
   attributedBy: string | null;
   attributedAt: string | null;
+  environment: string | null;
+  isSandbox: boolean;
   resolvedLabel: string;
   resolvedMethod: ResolutionMethod;
 }
@@ -64,6 +66,7 @@ export interface PayerAttribution {
 export interface PayerFilters {
   payersOnly?: boolean; // default true — spent > 0
   unattributedOnly?: boolean; // needs manual audit
+  includeSandbox?: boolean; // default false — hide sandbox-only test users
   search?: string; // email / id / coupon
   limit?: number;
   offset?: number;
@@ -94,11 +97,18 @@ function resolve(row: {
 export async function getPayersWithAttribution(
   filters: PayerFilters = {},
 ): Promise<PayerAttribution[]> {
-  const { payersOnly = true, unattributedOnly = false, search, limit = 200, offset = 0 } =
-    filters;
+  const {
+    payersOnly = true,
+    unattributedOnly = false,
+    includeSandbox = false,
+    search,
+    limit = 200,
+    offset = 0,
+  } = filters;
 
   const conditions: SQL[] = [];
   if (payersOnly) conditions.push(sql`coalesce(r.total_spent_usd, 0) > 0`);
+  if (!includeSandbox) conditions.push(sql`coalesce(ua.is_sandbox, false) = false`);
   if (unattributedOnly) {
     conditions.push(
       sql`ua.manual_influencer_id IS NULL AND ua.manual_source IS NULL AND ci.id IS NULL`,
@@ -138,6 +148,8 @@ export async function getPayersWithAttribution(
     note: string | null;
     attributed_by: string | null;
     attributed_at: string | null;
+    environment: string | null;
+    is_sandbox: boolean;
   }>(sql`
     SELECT
       u.id,
@@ -156,7 +168,9 @@ export async function getPayersWithAttribution(
       ci.id AS coupon_influencer_id,
       ci.name AS coupon_influencer_name,
       ua.manual_source, ua.note, ua.attributed_by,
-      to_char(ua.attributed_at, 'YYYY-MM-DD"T"HH24:MI:SSZ') AS attributed_at
+      to_char(ua.attributed_at, 'YYYY-MM-DD"T"HH24:MI:SSZ') AS attributed_at,
+      ua.environment,
+      coalesce(ua.is_sandbox, false) AS is_sandbox
     FROM revenuecat_subscriber r
     JOIN app_user u ON u.id = r.app_user_id
     LEFT JOIN user_attribution ua ON ua.app_user_id = r.app_user_id
@@ -202,6 +216,8 @@ export async function getPayersWithAttribution(
       note: r.note,
       attributedBy: r.attributed_by,
       attributedAt: r.attributed_at,
+      environment: r.environment,
+      isSandbox: r.is_sandbox,
       resolvedLabel: label,
       resolvedMethod: method,
     };
@@ -239,6 +255,7 @@ export async function getInfluencerCommissions(): Promise<InfluencerCommission[]
         coalesce(ua.manual_influencer_id, ${couponInfluencer("ua")}) AS influencer_id
       FROM revenuecat_subscriber r
       LEFT JOIN user_attribution ua ON ua.app_user_id = r.app_user_id
+      WHERE coalesce(ua.is_sandbox, false) = false
     )
     SELECT
       i.id, i.name, i.handle, i.platform,
@@ -271,9 +288,10 @@ export interface AttributionSummary {
   unattributedPayers: number;
   totalRevenue: number;
   totalCommission: number;
+  sandboxPayers: number; // excluded test purchases
 }
 
-/** Top-line KPIs for the attribution dashboard. */
+/** Top-line KPIs for the attribution dashboard. Sandbox test users are excluded. */
 export async function getAttributionSummary(): Promise<AttributionSummary> {
   const rows = await db.execute<{
     total_payers: number;
@@ -281,15 +299,18 @@ export async function getAttributionSummary(): Promise<AttributionSummary> {
     unattributed_payers: number;
     total_revenue: number;
     total_commission: number;
+    sandbox_payers: number;
   }>(sql`
-    WITH resolved AS (
+    WITH base AS (
       SELECT
         coalesce(r.total_spent_usd, 0)::float AS spent,
         coalesce(ua.manual_influencer_id, ${couponInfluencer("ua")}) AS influencer_id,
-        ua.manual_source
+        ua.manual_source,
+        coalesce(ua.is_sandbox, false) AS is_sandbox
       FROM revenuecat_subscriber r
       LEFT JOIN user_attribution ua ON ua.app_user_id = r.app_user_id
     ),
+    resolved AS (SELECT * FROM base WHERE is_sandbox = false),
     payers AS (SELECT * FROM resolved WHERE spent > 0)
     SELECT
       (SELECT count(*) FROM payers)::int AS total_payers,
@@ -297,7 +318,8 @@ export async function getAttributionSummary(): Promise<AttributionSummary> {
       (SELECT count(*) FROM payers WHERE influencer_id IS NULL AND manual_source IS NULL)::int AS unattributed_payers,
       (SELECT coalesce(sum(spent), 0) FROM payers)::float AS total_revenue,
       (SELECT coalesce(sum(res.spent * i.commission_rate), 0)
-         FROM resolved res JOIN influencer i ON i.id = res.influencer_id)::float AS total_commission
+         FROM resolved res JOIN influencer i ON i.id = res.influencer_id)::float AS total_commission,
+      (SELECT count(*) FROM base WHERE is_sandbox = true AND spent > 0)::int AS sandbox_payers
   `);
   const r = rows[0] ?? {
     total_payers: 0,
@@ -305,6 +327,7 @@ export async function getAttributionSummary(): Promise<AttributionSummary> {
     unattributed_payers: 0,
     total_revenue: 0,
     total_commission: 0,
+    sandbox_payers: 0,
   };
   return {
     totalPayers: r.total_payers,
@@ -312,6 +335,7 @@ export async function getAttributionSummary(): Promise<AttributionSummary> {
     unattributedPayers: r.unattributed_payers,
     totalRevenue: r.total_revenue,
     totalCommission: r.total_commission,
+    sandboxPayers: r.sandbox_payers,
   };
 }
 

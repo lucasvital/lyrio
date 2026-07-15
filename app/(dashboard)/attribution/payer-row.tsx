@@ -82,6 +82,11 @@ export function PayerRow({
             <span className="max-w-[220px] truncate text-foreground" title={payer.email ?? payer.id}>
               {payer.email ?? payer.id}
             </span>
+            {payer.isSandbox && (
+              <span className="shrink-0 rounded bg-negative/10 px-1.5 py-0.5 text-[10px] font-medium text-negative ring-1 ring-negative/25">
+                sandbox
+              </span>
+            )}
           </button>
         </td>
         <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(payer.spent)}</td>
