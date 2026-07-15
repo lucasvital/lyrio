@@ -235,8 +235,11 @@ export async function getPayersWithAttribution(
   });
 }
 
+/** Default commission rate applied to auto-discovered (unregistered) coupons. */
+const DEFAULT_RATE = 0.3;
+
 export interface InfluencerCommission {
-  id: string;
+  id: string; // influencer slug, or the raw coupon for unregistered rows
   name: string;
   handle: string | null;
   platform: string | null;
@@ -245,9 +248,19 @@ export interface InfluencerCommission {
   attributedUsers: number; // incl. free/coupon
   revenue: number;
   commission: number;
+  unregistered: boolean; // a coupon found in the data with no influencer record
+  coupon: string | null; // the coupon for unregistered rows (for quick registration)
 }
 
-/** Per-influencer sales & commission owed (revenue × rate). */
+/**
+ * Sales & commission per influencer AND per auto-discovered coupon.
+ *
+ * Coupons are grouped by the registered influencer that owns them; any coupon
+ * present in the data with no influencer record shows up as its own row
+ * (`unregistered`), so every referral coupon is visible without manual setup.
+ * Sourced from `app_user` so it covers everyone the attribution sync has seen,
+ * not only customers already mirrored from RevenueCat.
+ */
 export async function getInfluencerCommissions(): Promise<InfluencerCommission[]> {
   const rows = await db.execute<{
     id: string;
@@ -259,26 +272,71 @@ export async function getInfluencerCommissions(): Promise<InfluencerCommission[]
     attributed_users: number;
     revenue: number;
     commission: number;
+    unregistered: boolean;
+    coupon: string | null;
   }>(sql`
-    WITH resolved AS (
+    WITH base AS (
       SELECT
         coalesce(r.total_spent_usd, 0)::float AS spent,
-        coalesce(ua.manual_influencer_id, ${couponInfluencer(EFFECTIVE_COUPON)}) AS influencer_id
-      FROM revenuecat_subscriber r
-      LEFT JOIN user_attribution ua ON ua.app_user_id = r.app_user_id
+        coalesce(r.coupon_code, ua.coupon_code) AS coupon,
+        ua.manual_influencer_id
+      FROM app_user au
+      LEFT JOIN user_attribution ua ON ua.app_user_id = au.id
+      LEFT JOIN revenuecat_subscriber r ON r.app_user_id = au.id
       WHERE coalesce(ua.is_sandbox, false) = false
+        AND (
+          ua.manual_influencer_id IS NOT NULL
+          OR ua.coupon_code IS NOT NULL
+          OR r.coupon_code IS NOT NULL
+        )
+    ),
+    keyed AS (
+      SELECT
+        spent,
+        coupon,
+        coalesce(
+          manual_influencer_id,
+          (SELECT i.id FROM influencer i
+             WHERE coupon IS NOT NULL AND EXISTS (
+               SELECT 1 FROM jsonb_array_elements_text(i.coupon_codes) AS cc(code)
+               WHERE lower(cc.code) = lower(coupon)
+             )
+             LIMIT 1)
+        ) AS influencer_id
+      FROM base
+    ),
+    registered AS (
+      SELECT
+        i.id, i.name, i.handle, i.platform,
+        i.commission_rate::float AS rate,
+        count(*) FILTER (WHERE k.spent > 0)::int AS sales,
+        count(k.influencer_id)::int AS attributed_users,
+        coalesce(sum(k.spent), 0)::float AS revenue,
+        (coalesce(sum(k.spent), 0) * i.commission_rate)::float AS commission,
+        false AS unregistered,
+        NULL::text AS coupon
+      FROM influencer i
+      LEFT JOIN keyed k ON k.influencer_id = i.id
+      GROUP BY i.id, i.name, i.handle, i.platform, i.commission_rate
+    ),
+    unregistered AS (
+      SELECT
+        k.coupon AS id, k.coupon AS name, NULL::text AS handle, NULL::text AS platform,
+        ${DEFAULT_RATE}::float AS rate,
+        count(*) FILTER (WHERE k.spent > 0)::int AS sales,
+        count(*)::int AS attributed_users,
+        coalesce(sum(k.spent), 0)::float AS revenue,
+        (coalesce(sum(k.spent), 0) * ${DEFAULT_RATE})::float AS commission,
+        true AS unregistered,
+        k.coupon AS coupon
+      FROM keyed k
+      WHERE k.influencer_id IS NULL AND k.coupon IS NOT NULL
+      GROUP BY k.coupon
     )
-    SELECT
-      i.id, i.name, i.handle, i.platform,
-      i.commission_rate::float AS rate,
-      count(*) FILTER (WHERE res.spent > 0)::int AS sales,
-      count(res.influencer_id)::int AS attributed_users,
-      coalesce(sum(res.spent), 0)::float AS revenue,
-      (coalesce(sum(res.spent), 0) * i.commission_rate)::float AS commission
-    FROM influencer i
-    LEFT JOIN resolved res ON res.influencer_id = i.id
-    GROUP BY i.id, i.name, i.handle, i.platform, i.commission_rate
-    ORDER BY revenue DESC, i.name ASC
+    SELECT * FROM registered
+    UNION ALL
+    SELECT * FROM unregistered
+    ORDER BY revenue DESC, name ASC
   `);
   return rows.map((r) => ({
     id: r.id,
@@ -290,6 +348,8 @@ export async function getInfluencerCommissions(): Promise<InfluencerCommission[]
     attributedUsers: r.attributed_users,
     revenue: r.revenue,
     commission: r.commission,
+    unregistered: r.unregistered,
+    coupon: r.coupon,
   }));
 }
 

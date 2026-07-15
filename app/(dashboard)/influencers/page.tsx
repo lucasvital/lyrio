@@ -23,15 +23,17 @@ export default async function InfluencersPage() {
       handle: c.handle,
       platform: c.platform,
       commissionPercent: Math.round(c.commissionRate * 10000) / 100,
-      couponCodes: d?.couponCodes ?? [],
+      couponCodes: c.unregistered && c.coupon ? [c.coupon] : (d?.couponCodes ?? []),
       notes: d?.notes ?? null,
       sales: c.sales,
       attributedUsers: c.attributedUsers,
       revenue: c.revenue,
       commission: c.commission,
+      unregistered: c.unregistered,
     };
   });
 
+  const registered = rows.filter((r) => !r.unregistered);
   const totalSales = rows.reduce((a, r) => a + r.sales, 0);
   const totalRevenue = rows.reduce((a, r) => a + r.revenue, 0);
   const totalCommission = rows.reduce((a, r) => a + r.commission, 0);
@@ -44,7 +46,15 @@ export default async function InfluencersPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Influencers" value={formatNumber(rows.length)} />
+        <KpiCard
+          label="Influencers"
+          value={formatNumber(registered.length)}
+          hint={
+            rows.length > registered.length
+              ? `+${rows.length - registered.length} cupons a cadastrar`
+              : undefined
+          }
+        />
         <KpiCard label="Vendas atribuídas" value={formatNumber(totalSales)} />
         <KpiCard label="Receita atribuída" value={formatCurrency(totalRevenue)} />
         <KpiCard
