@@ -22,11 +22,28 @@ function couponFrom(event: string): string {
 }
 
 /**
- * Coupon code, preferring the actual purchase (`purchase_made`) over a courtesy
- * grant (`courtesy_applied`). RevenueCat surfaces the purchase coupon on
- * `purchase_made`, which is the strongest origin signal for a paying user.
+ * The real per-influencer coupon (e.g. "PADRELEONARDO"). RevenueCat stores it as
+ * the custom subscriber attribute `coupom_code` (note the typo in the app's
+ * tracking) and the RC→PostHog integration forwards the whole
+ * `subscriber_attributes` object on its events — so we read it from the mirrored
+ * events. This is authoritative; the plain `coupon_code` on purchase/courtesy
+ * events is only the generic category ("influencer"). Latest non-empty value
+ * wins (`ORDER BY timestamp DESC`).
  */
-const COUPON_EXPR = `coalesce(${couponFrom("purchase_made")}, ${couponFrom("courtesy_applied")})`;
+const RC_ATTR_COUPON = `(array_agg(
+  CASE WHEN jsonb_typeof(properties->'subscriber_attributes') = 'object'
+       THEN properties->'subscriber_attributes'->>'coupom_code' END
+  ORDER BY timestamp DESC
+) FILTER (
+  WHERE jsonb_typeof(properties->'subscriber_attributes') = 'object'
+    AND nullif(properties->'subscriber_attributes'->>'coupom_code', '') IS NOT NULL
+))[1]`;
+
+/**
+ * Coupon code: real RevenueCat coupon first, then the purchase coupon
+ * (`purchase_made`), then a courtesy grant (`courtesy_applied`).
+ */
+const COUPON_EXPR = `coalesce(${RC_ATTR_COUPON}, ${couponFrom("purchase_made")}, ${couponFrom("courtesy_applied")})`;
 
 /** Any event's `environment` matched case-insensitively (RevenueCat: PRODUCTION/SANDBOX). */
 const HAS_PROD = "bool_or(properties->>'environment' ILIKE 'PRODUCTION')";
