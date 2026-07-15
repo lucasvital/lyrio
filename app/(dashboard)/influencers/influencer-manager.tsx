@@ -17,6 +17,7 @@ export interface InfluencerRow {
   attributedUsers: number;
   revenue: number;
   commission: number;
+  unregistered?: boolean;
 }
 
 const EMPTY = {
@@ -44,6 +45,19 @@ export function InfluencerManager({ rows }: { rows: InfluencerRow[] }) {
       couponCodes: r.couponCodes.join(", "),
       commissionPercent: String(r.commissionPercent),
       notes: r.notes ?? "",
+    });
+    setShowForm(true);
+    setMsg(null);
+  }
+
+  // Register an auto-discovered coupon: prefill a fresh form (no id → creates)
+  // with the coupon as the name and coupon code.
+  function register(r: InfluencerRow) {
+    setForm({
+      ...EMPTY,
+      name: r.name,
+      couponCodes: r.couponCodes.join(", "),
+      commissionPercent: String(r.commissionPercent),
     });
     setShowForm(true);
     setMsg(null);
@@ -204,9 +218,17 @@ export function InfluencerManager({ rows }: { rows: InfluencerRow[] }) {
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-border align-top">
                 <td className="py-2 pr-3">
-                  <div className="font-medium text-foreground">{r.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{r.name}</span>
+                    {r.unregistered && (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-muted ring-1 ring-border">
+                        não cadastrado
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted">
-                    {[r.handle, r.platform].filter(Boolean).join(" · ") || r.id}
+                    {[r.handle, r.platform].filter(Boolean).join(" · ") ||
+                      (r.unregistered ? "cupom sem influencer" : r.id)}
                   </div>
                 </td>
                 <td className="py-2 pr-3">
@@ -238,20 +260,32 @@ export function InfluencerManager({ rows }: { rows: InfluencerRow[] }) {
                 </td>
                 <td className="py-2">
                   <div className="flex justify-end gap-1">
-                    <button
-                      onClick={() => edit(r)}
-                      className="rounded-lg border border-border p-1.5 hover:bg-elevated"
-                      title="Editar"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => remove(r.id, r.name)}
-                      className="rounded-lg border border-border p-1.5 text-negative hover:bg-elevated"
-                      title="Remover"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {r.unregistered ? (
+                      <button
+                        onClick={() => register(r)}
+                        className="rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-white"
+                        title="Cadastrar este cupom como influencer"
+                      >
+                        Cadastrar
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => edit(r)}
+                          className="rounded-lg border border-border p-1.5 hover:bg-elevated"
+                          title="Editar"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => remove(r.id, r.name)}
+                          className="rounded-lg border border-border p-1.5 text-negative hover:bg-elevated"
+                          title="Remover"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
