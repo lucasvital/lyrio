@@ -9,7 +9,6 @@ import {
   fetchChart,
   fetchOverviewMetrics,
   grossUsd,
-  listCustomerAttributes,
   listCustomerPurchases,
   listCustomersPage,
   listSubscriptions,
@@ -148,14 +147,11 @@ export async function syncRevenueCat(): Promise<SyncResult> {
           for (const s of subs) totalSpent += subscriptionRevenue(s);
         }
 
-        // Customer attributes hold the real per-influencer coupon (`coupom_code`).
-        // Prefer any attributes already inlined on the customer object; otherwise
-        // fetch them. Never fatal — attribution degrades gracefully without it.
-        let attributes = normalizeAttributes(c);
-        if (!couponFromAttributes(attributes)) {
-          const fetched = await listCustomerAttributes(c.id);
-          if (Object.keys(fetched).length > 0) attributes = fetched;
-        }
+        // Custom subscriber attributes (the real `coupom_code`) are NOT exposed
+        // by the RevenueCat read API, so we only capture whatever is inlined on
+        // the customer object here. The authoritative coupon is extracted from
+        // the mirrored PostHog `subscriber_attributes` in the attribution sync.
+        const attributes = normalizeAttributes(c);
         const couponCode = couponFromAttributes(attributes);
 
         await db
